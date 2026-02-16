@@ -1,0 +1,34 @@
+# Auto-detect text files and normalize line endings
+* text=auto
+
+# Ensure shell scripts use LF (required for bash/sh)
+*.sh text eol=lf
+gradlew text eol=lf
+
+# Kotlin / Java
+*.kt text diff=kotlin
+*.kts text diff=kotlin
+*.java text diff=java
+
+# Properties
+*.properties text
+
+# XML
+*.xml text
+
+# Binary files
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary
+*.pdf binary
+*.apk binary
+*.aab binary
+*.keystore binary
+*.jks binary
