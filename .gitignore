@@ -1,0 +1,58 @@
+# OS / Editor
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*.iml
+.idea/
+.vscode/
+
+# Secrets / local config
+local.properties
+*.keystore
+*.jks
+*.p12
+*.pem
+*.key
+*.env
+.env.*
+google-services.json
+firebase.json
+
+# Gradle / Android
+.gradle/
+**/build/
+captures/
+.externalNativeBuild/
+.cxx/
+*.apk
+*.aab
+*.dex
+
+# Kotlin / Java
+out/
+*.class
+.kotlin/
+
+# iOS / Xcode
+iosApp/Pods/
+*.xcworkspace
+*.xcuserstate
+DerivedData/
+*.moved-aside
+*.hmap
+*.ipa
+*.dSYM
+*.dSYM.zip
+
+# Logs
+*.log
+*.tmp
+*.bak
+
+# Tool caches
+.qodana/
+
+# Development notes
+CLAUDE.md
+.claude/
