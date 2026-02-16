@@ -1,0 +1,58 @@
+name: Architecture Proposal
+description: Propose an architectural change to Studio Camera
+title: '[Architecture] '
+labels: ['architecture', 'proposal']
+body:
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: What is the current situation and what forces are at play?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: What architectural change do you propose and why?
+    validations:
+      required: true
+  - type: textarea
+    id: modules
+    attributes:
+      label: Affected modules
+      description: Which modules or layers are affected by this change?
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives
+      description: What other approaches did you consider?
+    validations:
+      required: false
+  - type: dropdown
+    id: confidence
+    attributes:
+      label: Confidence level
+      description: How confident are you in this proposal?
+      options:
+        - Proven
+        - Tested
+        - Theoretical
+    validations:
+      required: true
+  - type: textarea
+    id: security
+    attributes:
+      label: Security impact
+      description: Any changes to attack surface, auth, crypto, or data handling?
+    validations:
+      required: false
+  - type: textarea
+    id: performance
+    attributes:
+      label: Performance impact
+      description: Any changes to startup time, rendering, network usage, or memory?
+    validations:
+      required: false

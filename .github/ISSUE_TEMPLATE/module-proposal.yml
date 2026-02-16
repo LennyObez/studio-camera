@@ -1,0 +1,73 @@
+name: Module Proposal
+description: Propose a new module or major module change for Studio Camera
+title: '[Module] '
+labels: ['architecture', 'proposal']
+body:
+  - type: input
+    id: name
+    attributes:
+      label: Module name
+      description: The name of the proposed module.
+      placeholder: "e.g., feature:settings, core:analytics"
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What does this module do and why is it needed?
+    validations:
+      required: true
+  - type: dropdown
+    id: module-type
+    attributes:
+      label: Module type
+      description: Where does this module fit in the architecture?
+      options:
+        - core (shared infrastructure)
+        - feature (user-facing functionality)
+    validations:
+      required: true
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencies
+      description: Which existing modules does this depend on?
+      placeholder: |
+        - core:domain
+        - core:network
+    validations:
+      required: true
+  - type: textarea
+    id: api-surface
+    attributes:
+      label: Public API surface
+      description: What interfaces, models, or components does this module expose?
+    validations:
+      required: true
+  - type: dropdown
+    id: platform-scope
+    attributes:
+      label: Platform scope
+      description: Does this module have platform-specific implementations?
+      options:
+        - commonMain only
+        - commonMain + androidMain
+        - commonMain + iosMain
+        - commonMain + androidMain + iosMain
+    validations:
+      required: true
+  - type: textarea
+    id: security
+    attributes:
+      label: Security considerations
+      description: What data does this module handle? Any sensitive operations?
+    validations:
+      required: false
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives
+      description: What other approaches did you consider?
+    validations:
+      required: false
