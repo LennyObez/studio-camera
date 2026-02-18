@@ -1,6 +1,7 @@
 package com.studiocamera.core.data.repository
 
 import co.touchlab.kermit.Logger
+import com.studiocamera.core.data.platform.PlatformDownloader
 import com.studiocamera.core.domain.model.ApiResult
 import com.studiocamera.core.domain.model.MediaFilter
 import com.studiocamera.core.domain.model.MediaItem
@@ -24,7 +25,8 @@ import kotlinx.coroutines.flow.flow
 class MediaRepositoryImpl(
     private val httpClient: HttpClient,
     private val endpoint: () -> String,
-    private val accessToken: () -> String?
+    private val accessToken: () -> String?,
+    private val platformDownloader: PlatformDownloader? = null
 ) : MediaRepository {
 
     override suspend fun fetchPage(
@@ -60,23 +62,57 @@ class MediaRepositoryImpl(
             val channel = response.bodyAsChannel()
             var downloaded = 0L
 
-            val buffer = ByteArray(8192)
-            // Read data and emit progress
-            while (!channel.isClosedForRead) {
-                val read = channel.readAvailable(buffer)
-                if (read <= 0) break
-                downloaded += read
-
-                emit(DownloadProgress.InProgress(
-                    bytesDownloaded = downloaded,
-                    totalBytes = contentLength
-                ))
+            // Pre-allocate if content length is known, otherwise grow incrementally.
+            // Use a single byte array to avoid double-buffering.
+            val allBytes: ByteArray
+            if (contentLength in 1..200_000_000L) {
+                // Known size: stream directly into pre-allocated array
+                allBytes = ByteArray(contentLength.toInt())
+                var offset = 0
+                val buffer = ByteArray(65536)
+                while (!channel.isClosedForRead) {
+                    val read = channel.readAvailable(buffer)
+                    if (read <= 0) break
+                    buffer.copyInto(allBytes, offset, 0, read)
+                    offset += read
+                    downloaded += read
+                    emit(DownloadProgress.InProgress(bytesDownloaded = downloaded, totalBytes = contentLength))
+                }
+            } else {
+                // Unknown size: collect chunks then merge once
+                val chunks = mutableListOf<ByteArray>()
+                val buffer = ByteArray(65536)
+                while (!channel.isClosedForRead) {
+                    val read = channel.readAvailable(buffer)
+                    if (read <= 0) break
+                    downloaded += read
+                    chunks.add(buffer.copyOfRange(0, read))
+                    emit(DownloadProgress.InProgress(bytesDownloaded = downloaded, totalBytes = contentLength))
+                }
+                allBytes = ByteArray(downloaded.toInt()).also { dest ->
+                    var offset = 0
+                    for (chunk in chunks) {
+                        chunk.copyInto(dest, offset)
+                        offset += chunk.size
+                    }
+                }
             }
 
-            // Save to platform storage (expect/actual needed for actual save)
-            val localPath = saveToPlatformStorage(id, buffer)
+            // Determine filename from media detail or use ID
+            val detail = getDetail(id)
+            val filename = (detail as? ApiResult.Success)?.data?.filename ?: "$id.jpg"
+            val mediaType = if (filename.endsWith(".mp4")) "video/mp4" else "image/jpeg"
+
+            val localPath = if (platformDownloader != null) {
+                platformDownloader.save(filename, mediaType, allBytes)
+            } else {
+                "/downloads/$filename"
+            }
+
             emit(DownloadProgress.Completed(localPath))
             Logger.d("Media") { "Download completed: $id ($downloaded bytes)" }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
             Logger.e("Media", e) { "Download failed: $id" }
             emit(DownloadProgress.Failed(e.message ?: "Download failed"))
@@ -88,10 +124,5 @@ class MediaRepositoryImpl(
             accessToken()?.let { bearerAuth(it) }
         }
         Logger.d("Media") { "Deleted media: $id" }
-    }
-
-    private fun saveToPlatformStorage(id: String, data: ByteArray): String {
-        // Platform-specific save handled by expect/actual DownloadManager in Phase 4
-        return "/downloads/$id"
     }
 }

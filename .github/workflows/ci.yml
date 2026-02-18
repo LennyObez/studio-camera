@@ -1,8 +1,9 @@
 name: CI
 
 on:
-  push:
   pull_request:
+  push:
+    branches: [main]
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -10,7 +11,7 @@ concurrency:
 
 jobs:
   quality:
-    name: Quality (Lint, Detekt)
+    name: Quality (Lint)
     runs-on: ubuntu-latest
 
     steps:
@@ -27,10 +28,6 @@ jobs:
 
       - name: Android lint
         run: ./gradlew lintDebug
-
-      - name: Detekt (if configured)
-        continue-on-error: true
-        run: ./gradlew detekt
 
   android-build:
     name: Android Build
@@ -77,7 +74,10 @@ jobs:
         with:
           cache-read-only: ${{ github.ref != 'refs/heads/main' }}
 
-      - name: Run all tests
+      - name: Run JVM unit tests
+        run: ./gradlew jvmTest
+
+      - name: Run Android lint + checks
         run: ./gradlew check
 
       - name: Upload test results on failure
@@ -87,3 +87,22 @@ jobs:
           name: test-results
           path: '**/build/reports/tests/'
           retention-days: 7
+
+  ios-build:
+    name: iOS Framework
+    runs-on: macos-latest
+    if: github.ref == 'refs/heads/main'
+    needs: quality
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '25'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Build iOS debug framework
+        run: ./gradlew linkDebugFrameworkIosSimulatorArm64

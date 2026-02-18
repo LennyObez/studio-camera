@@ -11,12 +11,20 @@ data class OverlayConfig(
     val showFocusPeaking: Boolean = false,
     val focusPeakingColor: Long = 0xFFFF0000,
     val showSafeZone: Boolean = false,
-    val isDisabledByThermal: Boolean = false
+    val show916SafeZone: Boolean = false
 )
 
-enum class GridType {
-    None,
-    RuleOfThirds,
-    CenterCross,
-    GoldenRatio
+enum class GridType(val label: String) {
+    None("Off"),
+    RuleOfThirds("3x3"),
+    Grid2x2("2x2"),
+    Grid6x4("6x4"),
+    CenterCross("Center cross"),
+    GoldenRatio("Golden ratio"),
+    Diagonal("Diagonal"),
+    Spiral("Golden spiral"),
+    Ratio16x9("16:9"),
+    Ratio9x16("9:16"),
+    Ratio4x3("4:3"),
+    Ratio3x2("3:2")
 }

@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withTimeout
+import kotlin.coroutines.coroutineContext
 
 data class PairStep(
     val name: String,
@@ -65,6 +66,8 @@ class PairStateMachine(
         deviceName: String,
         onTrustConfirmation: suspend (String) -> Boolean
     ): Result<PairedDevice> = coroutineScope {
+        // Capture the Job so cancel() can stop this coroutine
+        pairJob = coroutineContext[Job]
         _progress.value = PairProgress()
         try {
             withTimeout(30_000L) {

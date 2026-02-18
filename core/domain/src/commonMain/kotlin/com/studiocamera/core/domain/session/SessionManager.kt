@@ -16,4 +16,8 @@ interface SessionManager {
     suspend fun reconnect()
     fun isConnected(): Boolean
     fun currentCapabilities(): DeviceCapabilities?
+    fun currentEndpoint(): String?
+    fun currentAccessToken(): String?
+    fun onForeground()
+    fun onBackground()
 }

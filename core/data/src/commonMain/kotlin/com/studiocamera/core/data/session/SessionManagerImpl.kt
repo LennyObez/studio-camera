@@ -1,6 +1,7 @@
 package com.studiocamera.core.data.session
 
 import co.touchlab.kermit.Logger
+import com.studiocamera.core.data.camera.BrandApiDiscovery
 import com.studiocamera.core.domain.session.ConnectionStateManager
 import com.studiocamera.core.domain.model.CameraState
 import com.studiocamera.core.domain.model.ConnectionState
@@ -38,11 +39,13 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import com.studiocamera.core.common.getCurrentLinkAddress
 
 class SessionManagerImpl(
     private val httpClient: HttpClient,
     private val connectionStateManager: ConnectionStateManager,
-    private val deviceStorage: DeviceStorageRepository
+    private val deviceStorage: DeviceStorageRepository,
+    private val brandApiDiscovery: BrandApiDiscovery? = null
 ) : SessionManager {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -71,7 +74,7 @@ class SessionManagerImpl(
     }
 
     override suspend fun connect(device: PairedDevice) {
-        Logger.i(TAG) { "Connecting to ${device.deviceName}" }
+        Logger.i(TAG) { "Connecting to ${device.deviceName} (Sony)" }
         currentDevice = device
         reconnectAttempts = 0
         updateState(ConnectionState.Connecting)
@@ -87,43 +90,79 @@ class SessionManagerImpl(
             val trustedFp = deviceStorage.getTrustedFingerprint(device.deviceId)
             if (trustedFp != null && trustedFp != device.fingerprint && device.fingerprint.isNotEmpty()) {
                 updateState(ConnectionState.Failed)
-                _events.emit(SessionEvent.Error(SessionError.FingerprintMismatch()))
+                _events.emit(SessionEvent.Error(SessionError.FingerprintMismatch))
                 return
             }
 
-            // Health check
-            updateState(ConnectionState.Authenticating)
-            httpClient.get("${device.endpoint}${ApiEndpoints.HEALTH}")
-
-            // Fetch capabilities
-            updateState(ConnectionState.Binding)
-            if (accessToken != null) {
-                try {
-                    val response = httpClient.get("${device.endpoint}${ApiEndpoints.INFO}") {
-                        bearerAuth(accessToken!!)
-                    }
-                    capabilities = response.body<DeviceCapabilities>()
-                } catch (e: Exception) {
-                    Logger.w(TAG) { "Failed to fetch capabilities: ${e.message}" }
-                    capabilities = DeviceCapabilities()
+            // For Sony cameras, discover API endpoint using brand-specific discovery
+            var endpoint = device.endpoint
+            if (isSonyCamera(device) && brandApiDiscovery != null) {
+                Logger.i(TAG) { "Detected Sony camera, starting API discovery" }
+                val gatewayIp = extractGatewayIp(device.endpoint)
+                val linkAddress = getCurrentLinkAddress()
+                
+                Logger.i(TAG) { "Gateway IP: $gatewayIp (from endpoint: ${device.endpoint})" }
+                if (linkAddress != null) {
+                    Logger.d(TAG) { "Link address: $linkAddress" }
+                } else {
+                    Logger.d(TAG) { "Link address not available, will probe gateway IPs only" }
+                }
+                
+                val discoveryResult = brandApiDiscovery.discoverSony(gatewayIp, linkAddress)
+                if (discoveryResult != null) {
+                    endpoint = discoveryResult.endpoint
+                    Logger.i(TAG) { "API discovered: ${discoveryResult.endpoint}, MJPEG=${discoveryResult.supportsMjpeg}, verified=${discoveryResult.verified}" }
+                } else {
+                    Logger.w(TAG) { "API discovery failed, using original endpoint: $endpoint" }
                 }
             }
 
-            // Open WebSocket
-            openWebSocket(device.endpoint)
+            // If this is a known standard camera, skip Studio Box health checks and WebSockets
+            if (device.cameraBrand != com.studiocamera.core.domain.model.CameraBrand.Unknown) {
+                updateState(ConnectionState.Connected)
+                val updatedDevice = device.copy(endpoint = endpoint)
+                currentDevice = updatedDevice
+                connectionStateManager.setConnectedDevice(updatedDevice)
+                connectionStateManager.updateState(ConnectionState.Connected)
+                Logger.i(TAG) { "Connected to standard API for ${device.deviceName}" }
+            } else {
+                // Legacy Studio Box flow
+                // Health check
+                updateState(ConnectionState.Authenticating)
+                httpClient.get("$endpoint${ApiEndpoints.HEALTH}")
 
-            // Success
-            updateState(ConnectionState.Connected)
-            connectionStateManager.setConnectedDevice(device.copy(capabilities = capabilities ?: DeviceCapabilities()))
-            connectionStateManager.updateState(ConnectionState.Connected)
-            startKeepalive()
-            Logger.i(TAG) { "Connected to ${device.deviceName}" }
+                // Fetch capabilities
+                updateState(ConnectionState.Binding)
+                if (accessToken != null) {
+                    try {
+                        val response = httpClient.get("$endpoint${ApiEndpoints.INFO}") {
+                            bearerAuth(accessToken!!)
+                        }
+                        capabilities = response.body<DeviceCapabilities>()
+                    } catch (e: Exception) {
+                        Logger.w(TAG) { "Failed to fetch capabilities: ${e.message}" }
+                        capabilities = DeviceCapabilities()
+                    }
+                }
+
+                // Open WebSocket
+                openWebSocket(endpoint)
+
+                // Success
+                updateState(ConnectionState.Connected)
+                val updatedDevice = device.copy(capabilities = capabilities ?: DeviceCapabilities())
+                currentDevice = updatedDevice
+                connectionStateManager.setConnectedDevice(updatedDevice)
+                connectionStateManager.updateState(ConnectionState.Connected)
+                startKeepalive()
+                Logger.i(TAG) { "Connected to Studio Box ${device.deviceName}" }
+            }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             Logger.e(TAG, e) { "Connection failed" }
             updateState(ConnectionState.Failed)
-            _events.emit(SessionEvent.Error(SessionError.DeviceUnreachable()))
+            _events.emit(SessionEvent.Error(SessionError.DeviceUnreachable))
         }
     }
 
@@ -147,7 +186,7 @@ class SessionManagerImpl(
 
         if (reconnectAttempts >= MAX_RECONNECT_RETRIES) {
             updateState(ConnectionState.Failed)
-            _events.emit(SessionEvent.Error(SessionError.MaxRetriesExceeded()))
+            _events.emit(SessionEvent.Error(SessionError.MaxRetriesExceeded))
             return
         }
 
@@ -172,6 +211,21 @@ class SessionManagerImpl(
     override fun isConnected(): Boolean = _state.value == ConnectionState.Connected
 
     override fun currentCapabilities(): DeviceCapabilities? = capabilities
+    
+    override fun currentEndpoint(): String? = currentDevice?.endpoint
+    
+    override fun currentAccessToken(): String? = accessToken
+    
+    override fun onForeground() {
+        if (_state.value == ConnectionState.Disconnected && currentDevice != null) {
+            scope.launch { reconnect() }
+        }
+    }
+    
+    override fun onBackground() {
+        // Option to disconnect on background or just keep alive
+        // keepaliveJob?.cancel()
+    }
 
     private suspend fun openWebSocket(endpoint: String) {
         val wsUrl = endpoint
@@ -274,5 +328,33 @@ class SessionManagerImpl(
     private suspend fun updateState(newState: ConnectionState) {
         _state.value = newState
         _events.emit(SessionEvent.StateChanged(newState))
+    }
+
+    /**
+     * Checks if the device is a Sony camera based on device name or endpoint
+     */
+    private fun isSonyCamera(device: PairedDevice): Boolean {
+        val name = device.deviceName.lowercase()
+        val endpoint = device.endpoint.lowercase()
+        return name.contains("sony") || 
+               name.contains("alpha") || 
+               name.contains("ilce") ||
+               endpoint.contains("sony") ||
+               endpoint.contains("/sony/")
+    }
+
+    /**
+     * Extracts the host/IP from an endpoint URL using regex.
+     * Avoids `java.net.URL` which is unavailable in KMP commonMain on iOS.
+     */
+    private fun extractGatewayIp(endpoint: String): String {
+        // Match host between "://" and the next ":" or "/"
+        val hostRegex = Regex("""://([^:/]+)""")
+        val host = hostRegex.find(endpoint)?.groupValues?.get(1)
+        if (host != null) return host
+
+        // Fallback: extract any IPv4 address from the string
+        val ipRegex = Regex("""\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}""")
+        return ipRegex.find(endpoint)?.value ?: "192.168.122.1"
     }
 }

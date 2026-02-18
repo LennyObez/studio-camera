@@ -8,10 +8,12 @@ import org.koin.dsl.module
 val pairModule = module {
     factory { ParseQrPayloadUseCase() }
     factory { PairStateMachine(pairRepository = get()) }
-    factory { PairViewModel(
+    single { PairViewModel(
         parseQrPayload = get(),
         pairStateMachine = get(),
         connectionStateManager = get(),
-        deviceStorage = get()
+        deviceStorage = get(),
+        wifiDirectConnector = get(),
+        sessionManager = get()
     ) }
 }

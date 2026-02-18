@@ -93,12 +93,12 @@ fun NetworkStatusCard(
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (!wifiConnected) {
                         TextButton(onClick = onOpenWifiSettings) {
-                            Text("Open Wi-Fi Settings")
+                            Text("Open Wi-Fi settings")
                         }
                     }
                     if (unavailableReason != null && ssidName == null && wifiConnected) {
                         TextButton(onClick = onOpenAppSettings) {
-                            Text("Grant Permission")
+                            Text("Grant permission")
                         }
                     }
                 }
