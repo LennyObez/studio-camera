@@ -1,0 +1,13 @@
+Studio Camera is the companion app for your Studio Camera Box or Bridge. Pair via QR code or NFC, then control your camera wirelessly.
+
+Features:
+- Live view with low-latency MJPEG streaming
+- Remote camera controls: ISO, shutter speed, aperture, EV, focus
+- Grid and safe zone overlays for composition
+- Media browser with download and sharing
+- Secure TLS connection with device authentication
+- mDNS device discovery on your local network
+- NFC and QR code pairing
+- Dark and light themes
+
+Studio Camera connects to your Studio Camera Box over your local Wi-Fi network. No cloud services or accounts required — your footage stays on your device.

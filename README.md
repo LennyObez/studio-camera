@@ -1,20 +1,35 @@
 # Studio Camera
 
-Studio Camera is a premium mobile companion app for pairing with a Studio Camera Box/Bridge to control cameras, monitor live view, and manage media. It focuses on fast onboarding (QR/NFC), reliable session handling, and a polished pro workflow on Android and iOS.
+Studio Camera is a premium mobile companion app for controlling professional cameras (Sony, Canon, Nikon, Fujifilm, Panasonic/Lumix, OM System) via Wi-Fi Direct. Monitor live view, control exposure settings, capture photos and videos, and manage your camera's media library — all from your phone.
 
 ## Key Features
 
-- **Pairing & binding**: QR scan (primary), NFC tap (Android), manual entry (fallback)
-- **Robust connection lifecycle**: timeouts, cancel/retry, reconnect, capability negotiation
-- **Camera control**: live view, capture/record, exposure + focus controls (device capability dependent)
-- **Media library**: browse, preview, download, share, and delete (if supported)
-- **Discovery**: find devices on the local network via mDNS/UDP
-- **Mock mode**: fully interactive simulator for UI development and testing
+- **Multi-brand camera control**: Sony, Canon, Panasonic (live view, capture, exposure); Nikon, Fujifilm, OM System (stubs)
+- **Wi-Fi Direct pairing**: QR scan (primary), NFC tap (Android), manual SSID entry (fallback)
+- **Home screen**: Camera cards with connection status, quick reconnect, rename/remove, tips & guides
+- **Live view streaming**: Brand-specific protocols (Sony JSON-RPC, Canon CCAPI, Panasonic cam.cgi)
+- **Camera overlays**: Grid types, aspect ratio guides, histogram, focus peaking, zebra, safe zones
+- **Exposure controls**: ISO, shutter speed, aperture, EV compensation, AF/MF toggle
+- **Media library**: Browse, preview, download, share, and delete (if supported)
+- **Subscription**: Google Play Billing with 7-day trial, monthly + lifetime plans
+- **Mock mode**: Fully interactive simulator for UI development and testing
+
+## Supported Cameras
+
+| Brand | Protocol | Live View | Capture | Exposure | Status |
+|-------|----------|-----------|---------|----------|--------|
+| **Sony** | JSON-RPC/HTTP | Yes | Yes | Yes | Full |
+| **Canon** | CCAPI REST | Yes (MJPEG) | Yes | Yes | Full |
+| **Panasonic** | cam.cgi HTTP | Partial (UDP) | Yes | Yes | Partial |
+| **Nikon** | PTP/IP | No | No | No | Stub |
+| **Fujifilm** | Custom binary | No | No | No | Stub |
+| **OM System** | HTTP CGI + XML | No | No | No | Stub |
 
 ## Project Status
 
 - **Goal**: General Availability (GA) release on Google Play and Apple App Store
-- **Current phase**: Core scaffold complete, feature implementation in progress
+- **Current phase**: Feature-complete for Android, preparing for release
+- Sony, Canon, Panasonic camera APIs fully integrated; Nikon, Fujifilm, OM System stubbed for future implementation
 - This repository is **source-available** to enable community contributions while preserving commercial control (see [License](#license))
 
 ## Tech Stack
@@ -69,13 +84,18 @@ studio-camera/
   core/
     common/                Platform utilities (expect/actual)
     domain/                Models, repository interfaces, use cases
-    data/                  Repository implementations
-    network/               Ktor HTTP/WebSocket client
+    data/                  Repository implementations + brand camera APIs
+      camera/              Brand-specific camera control
+        sony/              Sony Camera Remote API (JSON-RPC)
+        canon/             Canon CCAPI (REST)
+        panasonic/         Panasonic cam.cgi (HTTP CGI)
+        stub/              Stub for unsupported brands
+    network/               Ktor HTTP client
     storage/               Encrypted key-value persistence
     designsystem/          Theme, typography, color tokens (Material 3)
     ui/                    Shared navigation components (Decompose)
   feature/
-    pair/                  QR/NFC/manual device pairing
+    pair/                  Home screen + QR/NFC/manual Wi-Fi Direct pairing
     discovery/             Network device discovery (mDNS)
     camera/                Live view streaming + camera controls
     media/                 Media library browsing + transfer
@@ -95,16 +115,17 @@ Domain Layer (Use Cases, Repository Interfaces, Models)
     |
 Data Layer (Repository Implementations)
     |
-  +---------+-----------+
-  |         |           |
-Network   Storage    Platform
-(Ktor)    (Settings) (CameraX, NFC, mDNS)
+  +---------+-----------+-----------------+
+  |         |           |                 |
+Network   Storage    Platform          Brand APIs
+(Ktor)    (Settings) (CameraX, NFC)   (Sony/Canon/Panasonic)
 ```
 
+- **Wi-Fi Direct**: Phone connects to the camera's Wi-Fi network, then probes brand-specific API endpoints
 - **Unidirectional data flow**: UI -> Component -> Repository -> Data source
-- **Session Manager**: pairing, auth/bind, keepalive, reconnect
-- **Connection State Machine**: idle -> connecting -> handshake -> paired -> active (with error/retry states)
-- **DI**: Koin modules scoped per feature
+- **Brand routing**: `BrandCameraRepositoryRouter` delegates to Sony, Canon, Panasonic, or Stub based on connected camera brand
+- **Session Manager**: Wi-Fi Direct connection, brand API discovery, reconnect
+- **DI**: Koin modules scoped per feature, bridge pattern for mock/real switching
 - **KMP**: shared `commonMain` code with `androidMain`/`iosMain` platform implementations
 
 ## Contributing

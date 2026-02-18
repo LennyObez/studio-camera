@@ -1,6 +1,5 @@
 package com.studiocamera.feature.mock.data
 
-import com.studiocamera.core.domain.model.CameraState
 import com.studiocamera.core.domain.model.ConnectionState
 import com.studiocamera.core.domain.model.DeviceCapabilities
 import com.studiocamera.core.domain.model.DeviceHealth
@@ -9,6 +8,7 @@ import com.studiocamera.core.domain.model.SessionEvent
 import com.studiocamera.core.domain.session.SessionManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -28,6 +28,8 @@ class MockSessionManager : SessionManager {
 
     private val _events = MutableSharedFlow<SessionEvent>(extraBufferCapacity = 64)
     override val events: SharedFlow<SessionEvent> = _events.asSharedFlow()
+
+    private var telemetryJob: Job? = null
 
     private var batteryPercent = 100
     private var temperature = 35f
@@ -65,6 +67,8 @@ class MockSessionManager : SessionManager {
     }
 
     override suspend fun disconnect() {
+        telemetryJob?.cancel()
+        telemetryJob = null
         _state.value = ConnectionState.Disconnected
         _events.emit(SessionEvent.StateChanged(ConnectionState.Disconnected))
     }
@@ -75,14 +79,30 @@ class MockSessionManager : SessionManager {
         delay(1000)
         _state.value = ConnectionState.Connected
         _events.emit(SessionEvent.StateChanged(ConnectionState.Connected))
+
+        startMockTelemetry()
     }
 
     override fun isConnected(): Boolean = _state.value == ConnectionState.Connected
 
     override fun currentCapabilities(): DeviceCapabilities = mockCapabilities
 
+    override fun currentEndpoint(): String = "mock://localhost"
+
+    override fun currentAccessToken(): String = "mock-token"
+
+    override fun onForeground() {
+        // No-op for mock
+    }
+
+    override fun onBackground() {
+        // No-op for mock
+    }
+
     private fun startMockTelemetry() {
-        scope.launch {
+        // Cancel any existing telemetry before starting a new one
+        telemetryJob?.cancel()
+        telemetryJob = scope.launch {
             while (isActive && _state.value == ConnectionState.Connected) {
                 delay(30_000) // Every 30s
 

@@ -19,16 +19,16 @@ suspend fun <T> safeApiCall(
     return try {
         val result = withTimeout(timeout) { block() }
         ApiResult.Success(result)
-    } catch (e: CancellationException) {
-        throw e // Don't catch coroutine cancellation
     } catch (e: TimeoutCancellationException) {
         Logger.w("Network") { "API call timed out" }
-        ApiResult.Error(SessionError.DeviceUnreachable())
+        ApiResult.Error(SessionError.DeviceUnreachable)
+    } catch (e: CancellationException) {
+        throw e // Don't catch coroutine cancellation
     } catch (e: ClientRequestException) {
         Logger.w("Network") { "Client error: ${e.response.status}" }
         when (e.response.status) {
             HttpStatusCode.Unauthorized, HttpStatusCode.Forbidden ->
-                ApiResult.Error(SessionError.WrongCredentials())
+                ApiResult.Error(SessionError.WrongCredentials)
             else ->
                 ApiResult.Error(SessionError.Unknown(e))
         }
@@ -37,7 +37,7 @@ suspend fun <T> safeApiCall(
         ApiResult.Error(SessionError.Unknown(e))
     } catch (e: Exception) {
         Logger.e("Network", e) { "API call failed" }
-        ApiResult.Error(SessionError.DeviceUnreachable())
+        ApiResult.Error(SessionError.DeviceUnreachable)
     }
 }
 

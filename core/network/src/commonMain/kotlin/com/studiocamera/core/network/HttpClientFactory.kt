@@ -11,7 +11,29 @@ import kotlinx.serialization.json.Json
 
 expect fun createPlatformHttpClient(tlsConfig: TlsConfig): HttpClient
 
-fun createHttpClient(tlsConfig: TlsConfig = TlsConfig()): HttpClient {
+/**
+ * Creates an HTTP client optimized for long-lived streaming connections (live view, MJPEG).
+ * No read timeout — the socket stays open indefinitely for continuous data.
+ */
+expect fun createStreamingPlatformHttpClient(): HttpClient
+
+fun createStreamingHttpClient(): HttpClient {
+    return createStreamingPlatformHttpClient().config {
+        install(Logging) {
+            logger = object : Logger {
+                override fun log(message: String) {
+                    co.touchlab.kermit.Logger.d("KtorStream") { message }
+                }
+            }
+            level = LogLevel.INFO
+        }
+    }
+}
+
+fun createHttpClient(
+    tlsConfig: TlsConfig = TlsConfig(),
+    tokenRefreshConfig: TokenRefreshConfig? = null
+): HttpClient {
     return createPlatformHttpClient(tlsConfig).config {
         install(ContentNegotiation) {
             json(Json {
@@ -35,6 +57,15 @@ fun createHttpClient(tlsConfig: TlsConfig = TlsConfig()): HttpClient {
             level = LogLevel.HEADERS
             sanitizeHeader { header ->
                 header == "Authorization" || header == "X-Bind-Token"
+            }
+        }
+
+        if (tokenRefreshConfig != null) {
+            install(TokenRefreshPlugin) {
+                getEndpoint = tokenRefreshConfig.getEndpoint
+                getRefreshToken = tokenRefreshConfig.getRefreshToken
+                onTokenRefreshed = tokenRefreshConfig.onTokenRefreshed
+                onRefreshFailed = tokenRefreshConfig.onRefreshFailed
             }
         }
     }

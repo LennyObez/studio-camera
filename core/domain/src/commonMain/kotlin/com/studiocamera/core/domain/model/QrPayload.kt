@@ -18,4 +18,16 @@ sealed class ParseResult {
     data class Expired(val expiresAt: Long) : ParseResult()
     data class UnsupportedVersion(val version: Int) : ParseResult()
     data class Invalid(val reason: String) : ParseResult()
+    data class SonyDevice(
+        val ssidSuffix: String,
+        val password: String,
+        val modelName: String,
+        val macAddress: String
+    ) : ParseResult()
+    data class WifiCredentials(
+        val ssid: String,
+        val password: String,
+        val authType: String = "WPA"
+    ) : ParseResult()
+    data class UnrecognizedFormat(val rawContent: String) : ParseResult()
 }

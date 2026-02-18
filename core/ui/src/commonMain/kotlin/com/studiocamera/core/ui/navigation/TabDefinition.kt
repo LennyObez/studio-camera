@@ -5,9 +5,9 @@ enum class Tab(
     val contentDescription: String,
     val requiresConnection: Boolean
 ) {
-    Pair(
-        label = "Pair",
-        contentDescription = "Pair tab - connect to a device",
+    Home(
+        label = "Home",
+        contentDescription = "Home tab - your cameras and pairing",
         requiresConnection = false
     ),
     Discover(
@@ -24,6 +24,11 @@ enum class Tab(
         label = "Media",
         contentDescription = "Media tab - browse and download media",
         requiresConnection = true
+    ),
+    Settings(
+        label = "Settings",
+        contentDescription = "Settings tab - app preferences",
+        requiresConnection = false
     ),
     Mock(
         label = "Mock",

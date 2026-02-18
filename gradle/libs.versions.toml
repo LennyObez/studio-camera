@@ -10,6 +10,7 @@ decompose = "3.3.0"
 coil = "3.1.0"
 kermit = "2.0.5"
 multiplatform-settings = "1.3.0"
+turbine = "1.2.0"
 camerax = "1.5.0"
 mlkit-barcode = "17.3.0"
 media3 = "1.6.0"
@@ -17,6 +18,7 @@ androidx-activity = "1.10.1"
 androidx-core = "1.16.0"
 androidx-lifecycle = "2.9.0"
 androidx-security = "1.1.0-alpha06"
+play-billing = "7.1.1"
 
 [libraries]
 # Kotlin
@@ -60,8 +62,10 @@ multiplatform-settings-serialization = { module = "com.russhwolf:multiplatform-s
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "androidx-activity" }
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "androidx-core" }
 androidx-lifecycle-runtime = { module = "androidx.lifecycle:lifecycle-runtime-ktx", version.ref = "androidx-lifecycle" }
+androidx-lifecycle-process = { module = "androidx.lifecycle:lifecycle-process", version.ref = "androidx-lifecycle" }
 androidx-lifecycle-viewmodel = { module = "androidx.lifecycle:lifecycle-viewmodel-ktx", version.ref = "androidx-lifecycle" }
 androidx-security-crypto = { module = "androidx.security:security-crypto", version.ref = "androidx-security" }
+play-billing = { module = "com.android.billingclient:billing-ktx", version.ref = "play-billing" }
 
 # CameraX
 camerax-core = { module = "androidx.camera:camera-core", version.ref = "camerax" }
@@ -74,6 +78,11 @@ mlkit-barcode = { module = "com.google.mlkit:barcode-scanning", version.ref = "m
 media3-exoplayer = { module = "androidx.media3:media3-exoplayer", version.ref = "media3" }
 media3-exoplayer-rtsp = { module = "androidx.media3:media3-exoplayer-rtsp", version.ref = "media3" }
 media3-ui = { module = "androidx.media3:media3-ui", version.ref = "media3" }
+
+# Testing
+kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
+kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "kotlinx-coroutines" }
+turbine = { module = "app.cash.turbine:turbine", version.ref = "turbine" }
 
 # Build-logic plugin classpath
 gradle-kotlin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.ref = "kotlin" }

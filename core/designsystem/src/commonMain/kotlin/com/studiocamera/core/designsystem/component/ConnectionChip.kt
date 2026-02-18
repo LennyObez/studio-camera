@@ -24,6 +24,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.studiocamera.core.designsystem.theme.StudioColors
 import com.studiocamera.core.domain.model.ConnectionState
@@ -63,6 +65,7 @@ fun ConnectionChip(
         modifier = chipModifier
             .clip(RoundedCornerShape(16.dp))
             .background(animatedColor.copy(alpha = 0.15f))
+            .semantics { contentDescription = text }
             .padding(horizontal = 12.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp)

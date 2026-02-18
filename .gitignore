@@ -7,6 +7,11 @@ Thumbs.db
 .idea/
 .vscode/
 
+# Eclipse
+.project
+.classpath
+.settings/
+
 # Secrets / local config
 local.properties
 *.keystore
@@ -53,6 +58,6 @@ DerivedData/
 # Tool caches
 .qodana/
 
-# Development notes
+# Local dev config
 CLAUDE.md
 .claude/

@@ -4,22 +4,16 @@ import co.touchlab.kermit.Logger
 import com.studiocamera.core.domain.model.DiscoveredDevice
 import com.studiocamera.core.domain.repository.DeviceStorageRepository
 import com.studiocamera.core.domain.repository.DiscoveryRepository
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.launch
 
 class DiscoveryRepositoryImpl(
     private val mdnsEngine: MdnsDiscoveryEngine,
     private val deviceStorage: DeviceStorageRepository
 ) : DiscoveryRepository {
 
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val _isScanning = MutableStateFlow(false)
 
     override fun discoverDevices(): Flow<List<DiscoveredDevice>> {

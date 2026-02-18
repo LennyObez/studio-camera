@@ -36,13 +36,14 @@ class PairRepositoryImpl(
 
     override suspend fun performTlsHandshake(endpoint: String): String {
         Logger.d("Pair") { "Performing TLS handshake" }
-        // The actual TLS handshake + fingerprint extraction happens at the OkHttp/Darwin level
-        // For now, the fingerprint comes from the trust manager callback
-        // In production, this would extract the server certificate fingerprint
+        // The actual TLS handshake + fingerprint extraction happens at the OkHttp/Darwin level.
+        // The server should include its certificate fingerprint in the response header.
         val response = httpClient.get("$endpoint${ApiEndpoints.HEALTH}")
-        // Fingerprint would be extracted from the TLS session
-        // Placeholder until proper platform implementation
-        return response.headers["X-Certificate-Fingerprint"] ?: "unknown"
+        return response.headers["X-Certificate-Fingerprint"]
+            ?: throw IllegalStateException(
+                "Server did not provide certificate fingerprint. " +
+                    "Cannot establish trust without identity verification."
+            )
     }
 
     override suspend fun getTrustedFingerprint(deviceId: String): String? {

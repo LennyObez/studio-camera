@@ -15,3 +15,15 @@ actual fun createPlatformHttpClient(tlsConfig: TlsConfig): HttpClient {
         }
     }
 }
+
+actual fun createStreamingPlatformHttpClient(): HttpClient {
+    return HttpClient(Darwin) {
+        engine {
+            configureRequest {
+                setAllowsCellularAccess(true)
+                // No timeout for streaming connections
+                setTimeoutInterval(0.0)
+            }
+        }
+    }
+}
