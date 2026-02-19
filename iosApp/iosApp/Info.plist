@@ -44,5 +44,7 @@
     <array>
         <string>_shutterpro._tcp</string>
     </array>
+    <key>NSPhotoLibraryAddUsageDescription</key>
+    <string>Studio Camera needs access to save downloaded photos and videos to your library.</string>
 </dict>
 </plist>
