@@ -50,10 +50,11 @@ DerivedData/
 *.dSYM
 *.dSYM.zip
 
-# Logs
+# Logs / crash dumps
 *.log
 *.tmp
 *.bak
+*.stackdump
 
 # Tool caches
 .qodana/

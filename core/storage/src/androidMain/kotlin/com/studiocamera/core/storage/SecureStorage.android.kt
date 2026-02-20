@@ -19,8 +19,11 @@ actual class SecureStorage(private val context: Context) {
                 Logger.w("SecureStorage") { "Deleted corrupted prefs, retrying encryption" }
                 createEncryptedPrefs()
             } catch (retryException: Exception) {
-                Logger.e("SecureStorage") { "Retry failed, using UNENCRYPTED fallback: ${retryException.message}" }
-                context.getSharedPreferences("studio_camera_prefs_fallback", Context.MODE_PRIVATE)
+                Logger.e("SecureStorage") { "Retry failed — encrypted storage unavailable: ${retryException.message}" }
+                throw IllegalStateException(
+                    "Cannot initialize encrypted storage. Device security may be compromised.",
+                    retryException
+                )
             }
         }
     }

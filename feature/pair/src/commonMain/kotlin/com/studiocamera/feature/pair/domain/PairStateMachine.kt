@@ -66,7 +66,8 @@ class PairStateMachine(
         deviceName: String,
         onTrustConfirmation: suspend (String) -> Boolean
     ): Result<PairedDevice> = coroutineScope {
-        // Capture the Job so cancel() can stop this coroutine
+        // Cancel any stale pairing job before starting a new one
+        pairJob?.cancel()
         pairJob = coroutineContext[Job]
         _progress.value = PairProgress()
         try {

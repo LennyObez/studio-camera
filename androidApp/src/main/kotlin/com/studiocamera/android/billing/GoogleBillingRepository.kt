@@ -30,6 +30,7 @@ class GoogleBillingRepository(
         const val PRODUCT_MONTHLY = "studio_camera_monthly"
         const val PRODUCT_LIFETIME = "studio_camera_lifetime"
         private const val KEY_TRIAL_START = "trial_start_epoch"
+        private const val KEY_TRIAL_HIGH_WATER = "trial_high_water"
         private const val TRIAL_DAYS = 7
         private const val TAG = "Billing"
     }
@@ -106,9 +107,16 @@ class GoogleBillingRepository(
         if (existing == 0L) {
             val now = System.currentTimeMillis()
             secureStorage.putString(KEY_TRIAL_START, now.toString())
+            secureStorage.putString(KEY_TRIAL_HIGH_WATER, now.toString())
             _subscriptionState.value = SubscriptionState.Trial(TRIAL_DAYS, now)
         } else {
-            val elapsed = System.currentTimeMillis() - existing
+            // Use high-water mark to prevent clock rollback from resetting the trial
+            val rawNow = System.currentTimeMillis()
+            val previousHighWater = secureStorage.getString(KEY_TRIAL_HIGH_WATER)?.toLongOrNull() ?: existing
+            val now = maxOf(rawNow, previousHighWater)
+            secureStorage.putString(KEY_TRIAL_HIGH_WATER, now.toString())
+
+            val elapsed = now - existing
             val daysElapsed = (elapsed / (1000 * 60 * 60 * 24)).toInt()
             val remaining = TRIAL_DAYS - daysElapsed
             _subscriptionState.value = if (remaining > 0) {
@@ -155,9 +163,9 @@ class GoogleBillingRepository(
                     if (purchase.products.contains(PRODUCT_MONTHLY) &&
                         purchase.purchaseState == Purchase.PurchaseState.PURCHASED
                     ) {
-                        // Active subscription — trust queryPurchasesAsync result
+                        // Active subscription — Google manages renewal; expiresAt=0 means "server-managed"
                         _subscriptionState.value = SubscriptionState.Monthly(
-                            expiresAt = purchase.purchaseTime + 30L * 24 * 60 * 60 * 1000
+                            expiresAt = 0L
                         )
                         acknowledgePurchaseIfNeeded(purchase)
                         return@queryPurchasesAsync
@@ -190,8 +198,9 @@ class GoogleBillingRepository(
         when (purchase.purchaseState) {
             Purchase.PurchaseState.PURCHASED -> {
                 if (purchase.products.contains(PRODUCT_MONTHLY)) {
+                    // Google manages renewal; expiresAt=0 means "server-managed"
                     _subscriptionState.value = SubscriptionState.Monthly(
-                        expiresAt = purchase.purchaseTime + 30L * 24 * 60 * 60 * 1000
+                        expiresAt = 0L
                     )
                 } else if (purchase.products.contains(PRODUCT_LIFETIME)) {
                     _subscriptionState.value = SubscriptionState.Lifetime(

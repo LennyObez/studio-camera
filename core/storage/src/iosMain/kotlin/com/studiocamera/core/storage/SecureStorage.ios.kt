@@ -69,7 +69,9 @@ actual class SecureStorage {
     }
 
     actual fun contains(key: String): Boolean {
-        return getString(key) != null
+        val query = baseQuery(key)
+        query[kSecMatchLimit] = kSecMatchLimitOne
+        return SecItemCopyMatching(query, null) == errSecSuccess
     }
 
     actual fun clear() {
