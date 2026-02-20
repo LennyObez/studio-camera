@@ -7,7 +7,7 @@ import com.studiocamera.core.data.di.dataModule
 import com.studiocamera.core.domain.di.domainModule
 import com.studiocamera.core.network.di.networkModule
 import com.studiocamera.core.storage.di.storageModule
-import com.studiocamera.core.ui.di.iosBridgeModule
+import com.studiocamera.core.data.di.bridgeModule
 import com.studiocamera.core.ui.di.iosCoreModule
 import com.studiocamera.feature.camera.di.cameraModule
 import com.studiocamera.feature.discovery.di.discoveryModule
@@ -43,7 +43,7 @@ object KoinInit : KoinComponent {
                 mediaModule,
                 mockModule,
                 settingsModule,
-                iosBridgeModule
+                bridgeModule
             )
         }
 

@@ -8,6 +8,8 @@ interface DeviceStorageRepository {
     suspend fun getPairedDevices(): List<PairedDevice>
     suspend fun getPairedDevice(deviceId: String): PairedDevice?
     suspend fun removePairedDevice(deviceId: String)
+    suspend fun saveWifiPassword(deviceId: String, password: String)
+    suspend fun getWifiPassword(deviceId: String): String?
     suspend fun saveTrustedFingerprint(deviceId: String, fingerprint: String)
     suspend fun getTrustedFingerprint(deviceId: String): String?
     suspend fun saveSessionInfo(info: SessionInfo)

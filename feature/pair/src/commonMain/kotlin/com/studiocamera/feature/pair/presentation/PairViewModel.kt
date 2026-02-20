@@ -30,6 +30,7 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 data class PairUiState(
@@ -122,18 +123,19 @@ class PairViewModel(
     private val connectionStateManager: ConnectionStateManager,
     private val deviceStorage: DeviceStorageRepository,
     private val wifiDirectConnector: WifiDirectConnector,
-    private val sessionManager: SessionManager
+    private val sessionManager: SessionManager,
+    externalScope: CoroutineScope? = null
 ) {
     private val exceptionHandler = CoroutineExceptionHandler { _, throwable ->
         Logger.e("PairViewModel") { "Coroutine error: ${throwable.message}" }
-        _state.value = _state.value.copy(
+        _state.update { it.copy(
             isPairing = false,
             isWifiDirectPairing = false,
             wifiDirectStep = WifiDirectStep.Idle,
             lastError = throwable.message ?: "An unexpected error occurred"
-        )
+        ) }
     }
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default + exceptionHandler)
+    private val scope = externalScope ?: CoroutineScope(SupervisorJob() + Dispatchers.Default + exceptionHandler)
 
     private val _state = MutableStateFlow(PairUiState())
     val state: StateFlow<PairUiState> = _state.asStateFlow()
@@ -161,10 +163,10 @@ class PairViewModel(
         wifiDirectConnector.onNetworkLost = {
             Logger.i("PairViewModel") { "Camera Wi-Fi network lost — disconnecting" }
             connectionStateManager.disconnect()
-            _state.value = _state.value.copy(
+            _state.update { it.copy(
                 isWifiDirectPairing = false,
                 wifiDirectStep = WifiDirectStep.Idle
-            )
+            ) }
             scope.launch {
                 sessionManager.disconnect()
                 _sideEffects.emit(PairSideEffect.ShowSnackbar("Camera disconnected"))
@@ -179,62 +181,56 @@ class PairViewModel(
             }
             is PairEvent.QrCodeScanned -> handleQrScanned(event.rawPayload)
             PairEvent.DismissScanner -> {
-                _state.value = _state.value.copy(isScanning = false)
+                _state.update { it.copy(isScanning = false) }
             }
             is PairEvent.ManualEndpointChanged -> {
-                _state.value = _state.value.copy(manualEndpoint = event.value)
+                _state.update { it.copy(manualEndpoint = event.value) }
             }
             is PairEvent.ManualTokenChanged -> {
-                _state.value = _state.value.copy(manualBindToken = event.value)
+                _state.update { it.copy(manualBindToken = event.value) }
             }
             is PairEvent.ManualSsidChanged -> {
-                _state.value = _state.value.copy(manualSsid = event.value)
+                _state.update { it.copy(manualSsid = event.value) }
             }
             is PairEvent.ManualWifiPasswordChanged -> {
-                _state.value = _state.value.copy(manualWifiPassword = event.value)
+                _state.update { it.copy(manualWifiPassword = event.value) }
             }
             PairEvent.ToggleTokenVisibility -> {
-                _state.value = _state.value.copy(
-                    isTokenVisible = !_state.value.isTokenVisible
-                )
+                _state.update { it.copy(isTokenVisible = !it.isTokenVisible) }
             }
             PairEvent.TogglePasswordVisibility -> {
-                _state.value = _state.value.copy(
-                    isPasswordVisible = !_state.value.isPasswordVisible
-                )
+                _state.update { it.copy(isPasswordVisible = !it.isPasswordVisible) }
             }
             PairEvent.ConnectManual -> connectManualStudioBox()
             PairEvent.ConnectWifiDirect -> connectManualWifiDirect()
             PairEvent.ToggleAdvancedManual -> {
-                _state.value = _state.value.copy(
-                    showAdvancedManual = !_state.value.showAdvancedManual
-                )
+                _state.update { it.copy(showAdvancedManual = !it.showAdvancedManual) }
             }
             is PairEvent.TrustConfirmed -> {
                 trustContinuation?.invoke(event.trusted)
                 trustContinuation = null
-                _state.value = _state.value.copy(showTrustDialog = false)
+                _state.update { it.copy(showTrustDialog = false) }
             }
             PairEvent.CancelPairing -> {
                 pairStateMachine.cancel()
                 scope.launch { wifiDirectConnector.disconnect() }
-                _state.value = _state.value.copy(
+                _state.update { it.copy(
                     isPairing = false,
                     isWifiDirectPairing = false,
                     wifiDirectStep = WifiDirectStep.Idle
-                )
+                ) }
             }
             PairEvent.RetryPairing -> retryPairing()
             PairEvent.SelectLiveControl -> {
-                _state.value = _state.value.copy(showModePicker = false)
+                _state.update { it.copy(showModePicker = false) }
                 scope.launch { _sideEffects.emit(PairSideEffect.NavigateToCamera) }
             }
             PairEvent.SelectMediaBrowser -> {
-                _state.value = _state.value.copy(showModePicker = false)
+                _state.update { it.copy(showModePicker = false) }
                 scope.launch { _sideEffects.emit(PairSideEffect.NavigateToMedia) }
             }
             PairEvent.DismissModePicker -> {
-                _state.value = _state.value.copy(showModePicker = false)
+                _state.update { it.copy(showModePicker = false) }
             }
             PairEvent.Disconnect -> disconnect()
             PairEvent.Reconnect -> reconnect()
@@ -245,28 +241,28 @@ class PairViewModel(
                 scope.launch { _sideEffects.emit(PairSideEffect.OpenAppSettings) }
             }
             PairEvent.DismissError -> {
-                _state.value = _state.value.copy(lastError = null)
+                _state.update { it.copy(lastError = null) }
             }
             PairEvent.ScanNfc -> {
-                _state.value = _state.value.copy(isNfcScanning = true)
+                _state.update { it.copy(isNfcScanning = true) }
                 scope.launch { _sideEffects.emit(PairSideEffect.EnableNfcForegroundDispatch) }
             }
             is PairEvent.NfcTagRead -> {
-                _state.value = _state.value.copy(isNfcScanning = false)
+                _state.update { it.copy(isNfcScanning = false) }
                 scope.launch { _sideEffects.emit(PairSideEffect.DisableNfcForegroundDispatch) }
                 handleQrScanned(event.rawPayload)
             }
             PairEvent.DismissNfcScanner -> {
-                _state.value = _state.value.copy(isNfcScanning = false)
+                _state.update { it.copy(isNfcScanning = false) }
                 scope.launch { _sideEffects.emit(PairSideEffect.DisableNfcForegroundDispatch) }
             }
             is PairEvent.RenameDevice -> renameDevice(event.deviceId, event.newName)
             is PairEvent.RequestRemoveDevice -> {
-                _state.value = _state.value.copy(showRemoveDeviceDialog = event.deviceId)
+                _state.update { it.copy(showRemoveDeviceDialog = event.deviceId) }
             }
             PairEvent.ConfirmRemoveDevice -> confirmRemoveDevice()
             PairEvent.DismissRemoveDialog -> {
-                _state.value = _state.value.copy(showRemoveDeviceDialog = null)
+                _state.update { it.copy(showRemoveDeviceDialog = null) }
             }
             is PairEvent.QuickReconnect -> quickReconnect(event.deviceId)
             is PairEvent.QuickNavigateCamera -> quickNavigate(event.deviceId, PairSideEffect.NavigateToCamera)
@@ -275,7 +271,7 @@ class PairViewModel(
     }
 
     fun onCameraPermissionGranted() {
-        _state.value = _state.value.copy(isScanning = true)
+        _state.update { it.copy(isScanning = true) }
     }
 
     fun onNearbyWifiPermissionResult(granted: Boolean) {
@@ -293,44 +289,44 @@ class PairViewModel(
             pendingWifiSsid = null
             pendingWifiPassword = null
             pendingWifiModelName = null
-            _state.value = _state.value.copy(
+            _state.update { it.copy(
                 isWifiDirectPairing = false,
                 wifiDirectStep = WifiDirectStep.Failed,
                 lastError = "Nearby Wi-Fi devices permission is required to connect to your camera. " +
                     "Please grant it when prompted."
-            )
+            ) }
         }
     }
 
     fun updateNetworkInfo(ssid: String?, unavailableReason: String?, wifiConnected: Boolean) {
-        _state.value = _state.value.copy(
+        _state.update { it.copy(
             ssidName = ssid,
             ssidUnavailableReason = unavailableReason,
             wifiConnected = wifiConnected
-        )
+        ) }
     }
 
     private fun handleQrScanned(rawPayload: String) {
-        _state.value = _state.value.copy(isScanning = false)
+        _state.update { it.copy(isScanning = false) }
         when (val result = parseQrPayload(rawPayload)) {
             is ParseResult.Success -> {
                 pendingPayload = result.payload
                 startPairing(result.payload)
             }
             is ParseResult.Expired -> {
-                _state.value = _state.value.copy(
+                _state.update { it.copy(
                     lastError = "QR code has expired. Please generate a new one."
-                )
+                ) }
             }
             is ParseResult.UnsupportedVersion -> {
-                _state.value = _state.value.copy(
+                _state.update { it.copy(
                     lastError = "Unsupported QR code version (${result.version}). Please update the app."
-                )
+                ) }
             }
             is ParseResult.Invalid -> {
-                _state.value = _state.value.copy(
+                _state.update { it.copy(
                     lastError = "Invalid QR code: ${result.reason}"
-                )
+                ) }
             }
             is ParseResult.SonyDevice -> {
                 val ssid = "DIRECT-${result.ssidSuffix}:${result.modelName}"
@@ -340,28 +336,28 @@ class PairViewModel(
                 startWifiDirectPairing(result.ssid, result.password, null)
             }
             is ParseResult.UnrecognizedFormat -> {
-                _state.value = _state.value.copy(
+                _state.update { it.copy(
                     lastError = "This QR code is not a recognized camera Wi-Fi code. " +
                         "Most cameras (Canon, Nikon, Fujifilm, OM System) display the Wi-Fi name and password on screen — " +
                         "enter them manually below."
-                )
+                ) }
             }
         }
     }
 
     private fun startWifiDirectPairing(ssid: String, password: String, modelName: String?) {
-        _state.value = _state.value.copy(
+        _state.update { it.copy(
             isWifiDirectPairing = true,
             wifiDirectStep = WifiDirectStep.Connecting,
             lastError = null
-        )
+        ) }
 
         scope.launch {
             val result = wifiDirectConnector.connect(ssid, password)
 
             when (result) {
                 is WifiDirectResult.Connected -> {
-                    _state.value = _state.value.copy(wifiDirectStep = WifiDirectStep.DetectingCamera)
+                    _state.update { it.copy(wifiDirectStep = WifiDirectStep.DetectingCamera) }
 
                     val brand = detectCameraBrand(ssid)
                     val deviceName = if (modelName != null) {
@@ -370,66 +366,69 @@ class PairViewModel(
                         brandDisplayName(brand, ssid)
                     }
 
-                    _state.value = _state.value.copy(wifiDirectStep = WifiDirectStep.Saving)
+                    _state.update { it.copy(wifiDirectStep = WifiDirectStep.Saving) }
 
+                    val deviceId = "wd-${ssid.replace(Regex("[^A-Za-z0-9_-]"), "_")}"
                     val device = PairedDevice(
-                        deviceId = "wd-${ssid.replace(Regex("[^A-Za-z0-9_-]"), "_")}",
+                        deviceId = deviceId,
                         deviceName = deviceName,
                         endpoint = "http://${result.gatewayIp}",
                         fingerprint = "",
                         connectionType = ConnectionType.WifiDirect,
                         cameraBrand = brand,
                         wifiSsid = ssid,
-                        wifiPassword = password.ifBlank { null },
                         lastConnectedAt = currentEpochSeconds()
                     )
 
                     deviceStorage.savePairedDevice(device)
+                    if (password.isNotBlank()) {
+                        deviceStorage.saveWifiPassword(deviceId, password)
+                    }
 
                     // Discover API endpoint and initialize camera session
-                    _state.value = _state.value.copy(wifiDirectStep = WifiDirectStep.Initializing)
+                    _state.update { it.copy(wifiDirectStep = WifiDirectStep.Initializing) }
                     sessionManager.connect(device)
                     loadPairedDevices()
 
                     if (sessionManager.isConnected()) {
-                        _state.value = _state.value.copy(
+                        _state.update { it.copy(
                             isWifiDirectPairing = false,
                             wifiDirectStep = WifiDirectStep.Done,
                             showModePicker = true
-                        )
+                        ) }
                     } else {
-                        _state.value = _state.value.copy(
+                        _state.update { it.copy(
                             isWifiDirectPairing = false,
                             wifiDirectStep = WifiDirectStep.Failed,
                             lastError = "Connected to camera Wi-Fi but could not reach camera API. " +
                                 "Make sure your camera is in remote control mode."
-                        )
+                        ) }
                     }
                 }
 
                 is WifiDirectResult.UserCancelled -> {
-                    _state.value = _state.value.copy(
+                    _state.update { it.copy(
                         isWifiDirectPairing = false,
                         wifiDirectStep = WifiDirectStep.Idle,
                         lastError = "Connection cancelled. You can try again or connect manually via Wi-Fi settings."
-                    )
+                    ) }
                 }
 
                 is WifiDirectResult.Failed -> {
-                    _state.value = _state.value.copy(
+                    _state.update { it.copy(
                         isWifiDirectPairing = false,
                         wifiDirectStep = WifiDirectStep.Failed,
                         lastError = "Wi-Fi connection failed: ${result.reason}"
-                    )
+                    ) }
                 }
 
                 is WifiDirectResult.OpenWifiSettings -> {
-                    _state.value = _state.value.copy(
+                    _state.update { it.copy(
                         isWifiDirectPairing = false,
                         wifiDirectStep = WifiDirectStep.Idle,
                         lastError = "Your device doesn't support automatic Wi-Fi connection. " +
                             "Please connect to \"$ssid\" manually in Wi-Fi settings, then return here."
-                    )
+                    ) }
                     _sideEffects.emit(PairSideEffect.OpenWifiSettings)
                 }
 
@@ -438,10 +437,10 @@ class PairViewModel(
                     pendingWifiSsid = ssid
                     pendingWifiPassword = password
                     pendingWifiModelName = modelName
-                    _state.value = _state.value.copy(
+                    _state.update { it.copy(
                         isWifiDirectPairing = false,
                         wifiDirectStep = WifiDirectStep.Idle
-                    )
+                    ) }
                     _sideEffects.emit(PairSideEffect.RequestNearbyWifiPermission)
                 }
             }
@@ -463,7 +462,7 @@ class PairViewModel(
         val password = _state.value.manualWifiPassword.trim()
 
         if (ssid.isBlank()) {
-            _state.value = _state.value.copy(lastError = "Please enter the Wi-Fi network name (SSID)")
+            _state.update { it.copy(lastError = "Please enter the Wi-Fi network name (SSID)") }
             return
         }
 
@@ -475,11 +474,11 @@ class PairViewModel(
         val token = _state.value.manualBindToken.trim()
 
         if (endpoint.isBlank()) {
-            _state.value = _state.value.copy(lastError = "Please enter the device endpoint")
+            _state.update { it.copy(lastError = "Please enter the device endpoint") }
             return
         }
         if (token.isBlank()) {
-            _state.value = _state.value.copy(lastError = "Please enter the bind token")
+            _state.update { it.copy(lastError = "Please enter the bind token") }
             return
         }
 
@@ -497,7 +496,7 @@ class PairViewModel(
     }
 
     private fun startPairing(payload: QrPayload) {
-        _state.value = _state.value.copy(isPairing = true, lastError = null)
+        _state.update { it.copy(isPairing = true, lastError = null) }
         connectionStateManager.updateState(ConnectionState.Connecting)
 
         scope.launch {
@@ -508,10 +507,10 @@ class PairViewModel(
                 deviceId = payload.deviceId,
                 deviceName = payload.deviceName,
                 onTrustConfirmation = { fingerprint ->
-                    _state.value = _state.value.copy(
+                    _state.update { it.copy(
                         showTrustDialog = true,
                         trustFingerprint = fingerprint
-                    )
+                    ) }
                     kotlinx.coroutines.suspendCancellableCoroutine { cont ->
                         trustContinuation = { trusted ->
                             @Suppress("DEPRECATION")
@@ -525,17 +524,17 @@ class PairViewModel(
                 connectionStateManager.setConnectedDevice(device)
                 connectionStateManager.updateState(ConnectionState.Connected)
                 deviceStorage.savePairedDevice(device)
-                _state.value = _state.value.copy(
+                _state.update { it.copy(
                     isPairing = false,
                     showModePicker = true
-                )
+                ) }
                 loadPairedDevices()
             }.onFailure { error ->
                 connectionStateManager.updateState(ConnectionState.Failed)
-                _state.value = _state.value.copy(
+                _state.update { it.copy(
                     isPairing = false,
                     lastError = error.message ?: "Pairing failed"
-                )
+                ) }
             }
         }
     }
@@ -566,7 +565,7 @@ class PairViewModel(
 
     private fun confirmRemoveDevice() {
         val deviceId = _state.value.showRemoveDeviceDialog ?: return
-        _state.value = _state.value.copy(showRemoveDeviceDialog = null)
+        _state.update { it.copy(showRemoveDeviceDialog = null) }
         scope.launch {
             // If removing the currently connected device, disconnect first
             val connectedDevice = connectionStateManager.connectedDevice.value
@@ -588,7 +587,8 @@ class PairViewModel(
             val device = deviceStorage.getPairedDevice(deviceId) ?: return@launch
             val ssid = device.wifiSsid
             if (ssid != null) {
-                startWifiDirectPairing(ssid, device.wifiPassword ?: "", device.deviceName)
+                val password = deviceStorage.getWifiPassword(deviceId) ?: ""
+                startWifiDirectPairing(ssid, password, device.deviceName)
             } else {
                 _sideEffects.emit(PairSideEffect.ShowSnackbar("Cannot reconnect — no saved Wi-Fi network"))
             }
@@ -608,16 +608,17 @@ class PairViewModel(
                 val device = deviceStorage.getPairedDevice(deviceId) ?: return@launch
                 val ssid = device.wifiSsid
                 if (ssid != null) {
+                    val password = deviceStorage.getWifiPassword(deviceId) ?: ""
                     // Reconnect first, then navigate on success
-                    _state.value = _state.value.copy(
+                    _state.update { it.copy(
                         isWifiDirectPairing = true,
                         wifiDirectStep = WifiDirectStep.Connecting,
                         lastError = null
-                    )
-                    val result = wifiDirectConnector.connect(ssid, device.wifiPassword ?: "")
+                    ) }
+                    val result = wifiDirectConnector.connect(ssid, password)
                     when (result) {
                         is WifiDirectResult.Connected -> {
-                            _state.value = _state.value.copy(wifiDirectStep = WifiDirectStep.DetectingCamera)
+                            _state.update { it.copy(wifiDirectStep = WifiDirectStep.DetectingCamera) }
                             val updatedDevice = device.copy(
                                 endpoint = "http://${result.gatewayIp}",
                                 lastConnectedAt = currentEpochSeconds()
@@ -626,47 +627,47 @@ class PairViewModel(
                             sessionManager.connect(updatedDevice)
                             loadPairedDevices()
                             if (sessionManager.isConnected()) {
-                                _state.value = _state.value.copy(
+                                _state.update { it.copy(
                                     isWifiDirectPairing = false,
                                     wifiDirectStep = WifiDirectStep.Done
-                                )
+                                ) }
                                 _sideEffects.emit(destination)
                             } else {
-                                _state.value = _state.value.copy(
+                                _state.update { it.copy(
                                     isWifiDirectPairing = false,
                                     wifiDirectStep = WifiDirectStep.Failed,
                                     lastError = "Connected to Wi-Fi but camera API unreachable"
-                                )
+                                ) }
                             }
                         }
                         is WifiDirectResult.NeedsNearbyWifiPermission -> {
                             pendingWifiSsid = ssid
-                            pendingWifiPassword = device.wifiPassword ?: ""
+                            pendingWifiPassword = password
                             pendingWifiModelName = device.deviceName
-                            _state.value = _state.value.copy(
+                            _state.update { it.copy(
                                 isWifiDirectPairing = false,
                                 wifiDirectStep = WifiDirectStep.Idle
-                            )
+                            ) }
                             _sideEffects.emit(PairSideEffect.RequestNearbyWifiPermission)
                         }
                         is WifiDirectResult.UserCancelled -> {
-                            _state.value = _state.value.copy(
+                            _state.update { it.copy(
                                 isWifiDirectPairing = false,
                                 wifiDirectStep = WifiDirectStep.Idle
-                            )
+                            ) }
                         }
                         is WifiDirectResult.Failed -> {
-                            _state.value = _state.value.copy(
+                            _state.update { it.copy(
                                 isWifiDirectPairing = false,
                                 wifiDirectStep = WifiDirectStep.Failed,
                                 lastError = "Could not reconnect: ${result.reason}"
-                            )
+                            ) }
                         }
                         is WifiDirectResult.OpenWifiSettings -> {
-                            _state.value = _state.value.copy(
+                            _state.update { it.copy(
                                 isWifiDirectPairing = false,
                                 wifiDirectStep = WifiDirectStep.Idle
-                            )
+                            ) }
                             _sideEffects.emit(PairSideEffect.OpenWifiSettings)
                         }
                     }
@@ -680,14 +681,14 @@ class PairViewModel(
     private fun loadPairedDevices() {
         scope.launch {
             val devices = deviceStorage.getPairedDevices()
-            _state.value = _state.value.copy(pairedDevices = devices)
+            _state.update { it.copy(pairedDevices = devices) }
         }
     }
 
     private fun observePairProgress() {
         scope.launch {
             pairStateMachine.progress.collect { progress ->
-                _state.value = _state.value.copy(pairProgress = progress)
+                _state.update { it.copy(pairProgress = progress) }
             }
         }
     }

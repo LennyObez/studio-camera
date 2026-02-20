@@ -24,7 +24,6 @@ data class PairedDevice(
     val connectionType: ConnectionType = ConnectionType.WifiDirect,
     val cameraBrand: CameraBrand = CameraBrand.Unknown,
     val wifiSsid: String? = null,
-    val wifiPassword: String? = null,
     val customName: String? = null
 ) {
     val displayName: String get() = customName ?: deviceName

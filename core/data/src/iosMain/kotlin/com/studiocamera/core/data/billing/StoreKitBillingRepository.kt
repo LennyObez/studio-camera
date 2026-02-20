@@ -29,6 +29,8 @@ private const val PRODUCT_MONTHLY = "studio_camera_monthly"
 private const val PRODUCT_LIFETIME = "studio_camera_lifetime"
 private const val KEY_TRIAL_START = "trial_start_epoch"
 private const val KEY_TRIAL_HIGH_WATER = "trial_high_water"
+private const val KEY_PURCHASE_TYPE = "ios_purchase_type"
+private const val KEY_PURCHASE_TIMESTAMP = "ios_purchase_timestamp"
 private const val TRIAL_DAYS = 7
 
 /**
@@ -57,9 +59,24 @@ class StoreKitBillingRepository(
     )
 
     fun initialize() {
+        restorePersistedPurchase()
         ensureTrialStarted()
         SKPaymentQueue.defaultQueue().addTransactionObserver(transactionObserver)
         fetchProducts()
+    }
+
+    private fun restorePersistedPurchase() {
+        val purchaseType = secureStorage.getString(KEY_PURCHASE_TYPE) ?: return
+        val timestamp = secureStorage.getString(KEY_PURCHASE_TIMESTAMP)?.toLongOrNull() ?: 0L
+        when (purchaseType) {
+            "lifetime" -> _subscriptionState.value = SubscriptionState.Lifetime(purchasedAt = timestamp)
+            "monthly" -> _subscriptionState.value = SubscriptionState.Monthly(expiresAt = 0L)
+        }
+    }
+
+    private fun persistPurchase(type: String) {
+        secureStorage.putString(KEY_PURCHASE_TYPE, type)
+        secureStorage.putString(KEY_PURCHASE_TIMESTAMP, currentTimeMillis().toString())
     }
 
     private fun ensureTrialStarted() {
@@ -114,9 +131,11 @@ class StoreKitBillingRepository(
 
         when (productId) {
             PRODUCT_MONTHLY -> {
+                persistPurchase("monthly")
                 _subscriptionState.value = SubscriptionState.Monthly(expiresAt = 0L)
             }
             PRODUCT_LIFETIME -> {
+                persistPurchase("lifetime")
                 _subscriptionState.value = SubscriptionState.Lifetime(purchasedAt = currentTimeMillis())
             }
         }
@@ -130,9 +149,11 @@ class StoreKitBillingRepository(
 
         when (productId) {
             PRODUCT_MONTHLY -> {
+                persistPurchase("monthly")
                 _subscriptionState.value = SubscriptionState.Monthly(expiresAt = 0L)
             }
             PRODUCT_LIFETIME -> {
+                persistPurchase("lifetime")
                 _subscriptionState.value = SubscriptionState.Lifetime(purchasedAt = currentTimeMillis())
             }
         }
