@@ -21,10 +21,10 @@ private data class NetworkInfo(
 /**
  * Connects to camera Wi-Fi Direct networks using [WifiNetworkSpecifier] (API 29+).
  *
- * On connection, binds the process to the camera network via
- * [ConnectivityManager.bindProcessToNetwork] so that all HTTP traffic routes
- * through the camera instead of the default (internet) network. The binding
- * is restored on disconnect or network loss.
+ * On connection, stores the camera [Network] in [CameraNetworkBinding] so that
+ * OkHttp's [BoundNetworkSocketFactory] can route camera HTTP traffic through the
+ * correct network. Does NOT call [ConnectivityManager.bindProcessToNetwork]
+ * because Android docs recommend against it for WifiNetworkSpecifier flows.
  */
 actual class WifiDirectConnector(private val context: Context) {
 
@@ -43,8 +43,6 @@ actual class WifiDirectConnector(private val context: Context) {
 
             val callback = object : ConnectivityManager.NetworkCallback() {
                 override fun onAvailable(network: Network) {
-                    connectivityManager.bindProcessToNetwork(network)
-
                     val info = detectNetworkInfo(network)
                     if (info != null) {
                         Logger.i(TAG) {
@@ -108,11 +106,10 @@ actual class WifiDirectConnector(private val context: Context) {
         disconnectSync()
     }
 
-    /** Restores default network routing and clears the camera network binding. */
+    /** Clears the camera network binding so OkHttp stops routing through it. */
     private fun clearNetworkBinding() {
         CameraNetworkBinding.boundNetwork = null
         CameraNetworkBinding.onNetworkChanged?.invoke()
-        connectivityManager.bindProcessToNetwork(null)
     }
 
     private fun disconnectSync() {

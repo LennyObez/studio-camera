@@ -14,6 +14,7 @@ import platform.Foundation.writeToURL
 import platform.Photos.PHAssetChangeRequest
 import platform.Photos.PHPhotoLibrary
 import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 
 private const val TAG = "PlatformDownloader"
 
@@ -51,9 +52,10 @@ actual class PlatformDownloader {
                         continuation.resume(filename)
                     }
                 } else {
-                    Logger.e(TAG) { "Failed to save $filename: ${error?.localizedDescription}" }
+                    val msg = "Failed to save $filename: ${error?.localizedDescription}"
+                    Logger.e(TAG) { msg }
                     if (continuation.isActive) {
-                        continuation.resume(filename)
+                        continuation.resumeWithException(IllegalStateException(msg))
                     }
                 }
             }

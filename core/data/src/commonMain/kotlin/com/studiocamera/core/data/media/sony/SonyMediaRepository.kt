@@ -34,6 +34,8 @@ class SonyMediaRepository(
     companion object {
         private const val TAG = "SonyMedia"
         private const val AV_CONTENT_URI = "storage:memoryCard1" // Default for Sony
+        /** Separator between Sony content URI and download URL in media item IDs. */
+        private const val ID_SEPARATOR = "\n"
     }
 
     override suspend fun fetchPage(
@@ -95,7 +97,7 @@ class SonyMediaRepository(
                     if (contentUrl != null) {
                         items.add(
                             MediaItem(
-                                id = "$uri@@$contentUrl",
+                                id = "$uri$ID_SEPARATOR$contentUrl",
                                 filename = title,
                                 type = if (isVideo) com.studiocamera.core.domain.model.MediaType.Video else com.studiocamera.core.domain.model.MediaType.Photo,
                                 thumbnailUrl = element["content"]?.jsonObject?.get("thumbnail")?.jsonArray?.firstOrNull()?.jsonObject?.get("url")?.jsonPrimitive?.content ?: "",
@@ -132,7 +134,7 @@ class SonyMediaRepository(
 
     override suspend fun downloadMedia(id: String): Flow<DownloadProgress> = flow {
         try {
-            val urlToDownload = id.substringAfter("@@")
+            val urlToDownload = id.substringAfter(ID_SEPARATOR)
             
             if (!urlToDownload.startsWith("http")) {
                  throw Exception("URL not found for ID $id")
@@ -205,7 +207,7 @@ class SonyMediaRepository(
             
             val params = listOf<JsonElement>(
                 JsonObject(mapOf(
-                    "uri" to JsonArray(listOf(JsonPrimitive(id.substringBefore("@@"))))
+                    "uri" to JsonArray(listOf(JsonPrimitive(id.substringBefore(ID_SEPARATOR))))
                 ))
             )
             

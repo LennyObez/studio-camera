@@ -110,7 +110,7 @@ gradle/              Version catalog and wrapper
 
 Before opening a PR, the full gate must pass:
 
-- Kotlin: `./gradlew check` (includes lint, detekt if configured)
+- Kotlin: `./gradlew check` (includes lint and unit tests)
 - Android lint: `./gradlew lintDebug`
 - Never commit secrets, API keys, or device credentials.
 
