@@ -25,6 +25,8 @@ import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 
 /**
  * Canon CCAPI implementation.
@@ -101,8 +103,10 @@ class CanonCameraRepository(
     }
 
     override suspend fun setShootMode(mode: String): ApiResult<Unit> = safeApiCall {
+        // CCAPI does not expose a shoot mode toggle endpoint; mode is controlled
+        // physically on the camera dial. Update local state only.
         _cameraState.value = _cameraState.value.copy(shootMode = mode)
-        Logger.d(TAG) { "Shoot mode set to $mode (stubbed for Canon)" }
+        Logger.d(TAG) { "Shoot mode updated to $mode (camera-dial controlled)" }
     }
 
     override suspend fun getSettings(): ApiResult<CameraState> = safeApiCall {
@@ -172,7 +176,7 @@ class CanonCameraRepository(
         iso?.let {
             httpClient.put(ccapi("/shooting/settings/iso")) {
                 contentType(ContentType.Application.Json)
-                setBody("""{"value": "$it"}""")
+                setBody(buildJsonObject { put("value", it.toString()) }.toString())
             }
             state = state.copy(iso = it)
         }
@@ -180,7 +184,7 @@ class CanonCameraRepository(
         shutterSpeed?.let {
             httpClient.put(ccapi("/shooting/settings/tv")) {
                 contentType(ContentType.Application.Json)
-                setBody("""{"value": "$it"}""")
+                setBody(buildJsonObject { put("value", it) }.toString())
             }
             state = state.copy(shutterSpeed = it)
         }
@@ -189,7 +193,7 @@ class CanonCameraRepository(
             val formatted = if (it == it.toInt().toFloat()) it.toInt().toString() else "%.1f".format(it)
             httpClient.put(ccapi("/shooting/settings/av")) {
                 contentType(ContentType.Application.Json)
-                setBody("""{"value": "$formatted"}""")
+                setBody(buildJsonObject { put("value", formatted) }.toString())
             }
             state = state.copy(aperture = it)
         }
@@ -198,7 +202,7 @@ class CanonCameraRepository(
             val evStr = if (it >= 0) "+%.1f".format(it) else "%.1f".format(it)
             httpClient.put(ccapi("/shooting/settings/exposure")) {
                 contentType(ContentType.Application.Json)
-                setBody("""{"value": "$evStr"}""")
+                setBody(buildJsonObject { put("value", evStr) }.toString())
             }
             state = state.copy(ev = it)
         }
@@ -218,20 +222,26 @@ class CanonCameraRepository(
             try {
                 httpClient.put(ccapi("/shooting/settings/wb")) {
                     contentType(ContentType.Application.Json)
-                    setBody("""{"value": "$it"}""")
+                    setBody(buildJsonObject { put("value", it) }.toString())
                 }
-            } catch (_: Exception) {}
-            state = state.copy(whiteBalance = it)
+                state = state.copy(whiteBalance = it)
+            } catch (e: CancellationException) { throw e
+            } catch (e: Exception) {
+                Logger.w(TAG) { "Failed to set white balance: ${e.message}" }
+            }
         }
 
         exposureMode?.let {
             try {
                 httpClient.put(ccapi("/shooting/settings/shootingmode")) {
                     contentType(ContentType.Application.Json)
-                    setBody("""{"value": "$it"}""")
+                    setBody(buildJsonObject { put("value", it) }.toString())
                 }
-            } catch (_: Exception) {}
-            state = state.copy(exposureMode = it)
+                state = state.copy(exposureMode = it)
+            } catch (e: CancellationException) { throw e
+            } catch (e: Exception) {
+                Logger.w(TAG) { "Failed to set exposure mode: ${e.message}" }
+            }
         }
 
         _cameraState.value = state
@@ -241,7 +251,10 @@ class CanonCameraRepository(
     override suspend fun tapToFocus(x: Float, y: Float): ApiResult<Unit> = safeApiCall {
         httpClient.post(ccapi("/shooting/control/af")) {
             contentType(ContentType.Application.Json)
-            setBody("""{"x": ${(x * 100).toInt()}, "y": ${(y * 100).toInt()}}""")
+            setBody(buildJsonObject {
+                put("x", (x * 100).toInt())
+                put("y", (y * 100).toInt())
+            }.toString())
         }
         _cameraState.value = _cameraState.value.copy(focusX = x, focusY = y)
         Logger.d(TAG) { "AF at ($x, $y)" }

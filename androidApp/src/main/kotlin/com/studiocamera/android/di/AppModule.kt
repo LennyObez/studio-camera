@@ -10,6 +10,9 @@ import com.studiocamera.core.data.platform.PlatformDownloader
 import com.studiocamera.core.domain.repository.BillingRepository
 import com.studiocamera.core.domain.repository.DeviceStorageRepository
 import com.studiocamera.core.domain.session.ConnectionStateManager
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import com.studiocamera.core.data.di.bridgeModule
 import com.studiocamera.core.data.di.dataModule
 import com.studiocamera.core.network.TokenRefreshConfig
@@ -42,6 +45,7 @@ fun appModule() = listOf(
 )
 
 val coreModule = module {
+    single<CoroutineScope>(named("appScope")) { CoroutineScope(SupervisorJob() + Dispatchers.Default) }
     single { ConnectionStateManager() }
     single { SecureStorage(get()) }
     single { MockModeManager() }

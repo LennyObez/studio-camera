@@ -8,9 +8,7 @@ import com.studiocamera.core.domain.model.CameraState
 import com.studiocamera.core.domain.repository.CameraRepository
 import com.studiocamera.core.domain.session.ConnectionStateManager
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -19,24 +17,25 @@ import kotlinx.coroutines.flow.stateIn
 
 class BrandCameraRepositoryRouter(
     private val connectionStateManager: ConnectionStateManager,
-    private val brandRepositories: Map<CameraBrand, CameraRepository>
+    private val brandRepositories: Map<CameraBrand, CameraRepository>,
+    externalScope: CoroutineScope
 ) : CameraRepository {
 
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val fallbackStub = StubCameraRepository()
 
     private fun currentRepo(): CameraRepository {
         val brand = connectionStateManager.connectedDevice.value?.cameraBrand ?: CameraBrand.Unknown
-        return brandRepositories[brand] ?: StubCameraRepository(brand)
+        return brandRepositories[brand] ?: fallbackStub
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
     override val cameraState: StateFlow<CameraState> = connectionStateManager.connectedDevice
         .flatMapLatest { device ->
             val brand = device?.cameraBrand ?: CameraBrand.Unknown
-            val repo = brandRepositories[brand] ?: StubCameraRepository(brand)
+            val repo = brandRepositories[brand] ?: fallbackStub
             repo.cameraState
         }
-        .stateIn(scope, SharingStarted.WhileSubscribed(5000), CameraState())
+        .stateIn(externalScope, SharingStarted.WhileSubscribed(5000), CameraState())
 
     @OptIn(ExperimentalCoroutinesApi::class)
     override fun liveViewFrames(): Flow<ByteArray> {
@@ -47,7 +46,7 @@ class BrandCameraRepositoryRouter(
             Logger.i("CameraRouter") {
                 "liveViewFrames: device=${device?.deviceName}, brand=$brand, hasRepo=$hasRepo"
             }
-            val repo = brandRepositories[brand] ?: StubCameraRepository(brand)
+            val repo = brandRepositories[brand] ?: fallbackStub
             repo.liveViewFrames()
         }
     }
