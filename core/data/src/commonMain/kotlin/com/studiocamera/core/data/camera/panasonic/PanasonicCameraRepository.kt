@@ -12,13 +12,17 @@ import io.ktor.client.request.get
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.encodeURLParameter
 import io.ktor.http.isSuccess
+import com.studiocamera.core.network.UdpReceiver
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.onCompletion
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.isActive
 
 /**
  * Panasonic/Lumix camera control via cam.cgi HTTP interface.
@@ -67,23 +71,39 @@ class PanasonicCameraRepository(
         val ep = endpoint()
         if (ep.isBlank()) return emptyFlow()
 
-        return flow<ByteArray> {
+        return flow {
+            httpClient.get(cgi("mode=startstream&value=49152"))
+            Logger.d(TAG) { "Panasonic stream started on port 49152" }
+
+            val receiver = UdpReceiver(49152)
             try {
-                httpClient.get(cgi("mode=startstream&value=49152"))
-                Logger.d(TAG) { "Panasonic stream started on port 49152" }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                Logger.w(TAG) { "Failed to start Panasonic stream: ${e.message}" }
+                val buffer = ByteArray(65536)
+                while (currentCoroutineContext().isActive) {
+                    val len = receiver.receive(buffer)
+                    if (len < 32) continue
+
+                    // Panasonic UDP datagram layout:
+                    // [0..7]  : Header (magic, sequence)
+                    // [8..29] : Timestamp/metadata
+                    // [30..31]: Extension length (16-bit LE)
+                    // [32+ext]: JPEG frame data (starts with 0xFF 0xD8)
+                    val extLen = (buffer[30].toInt() and 0xFF) or
+                            ((buffer[31].toInt() and 0xFF) shl 8)
+                    val jpegOffset = 32 + extLen
+
+                    if (jpegOffset >= len) continue
+                    if (buffer[jpegOffset] == 0xFF.toByte() &&
+                        jpegOffset + 1 < len &&
+                        buffer[jpegOffset + 1] == 0xD8.toByte()
+                    ) {
+                        emit(buffer.copyOfRange(jpegOffset, len))
+                    }
+                }
+            } finally {
+                receiver.close()
+                try { httpClient.get(cgi("mode=stopstream")) } catch (_: Exception) {}
             }
-            // UDP live view requires platform-specific DatagramSocket (not yet implemented).
-            // Log a warning and return an empty flow rather than crashing.
-            Logger.w(TAG) { "Panasonic UDP live view not yet implemented — live view unavailable" }
-        }.onCompletion {
-            try {
-                httpClient.get(cgi("mode=stopstream"))
-            } catch (_: Exception) {}
-        }
+        }.flowOn(Dispatchers.IO)
     }
 
     override suspend fun capturePhoto(): ApiResult<String> = safeApiCall {

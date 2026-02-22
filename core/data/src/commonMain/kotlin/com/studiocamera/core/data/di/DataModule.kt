@@ -18,6 +18,9 @@ import com.studiocamera.core.data.camera.sony.SonyLiveViewDecoder
 import com.studiocamera.core.data.camera.sony.SonyCameraRepository
 import com.studiocamera.core.data.camera.canon.CanonCameraRepository
 import com.studiocamera.core.data.camera.panasonic.PanasonicCameraRepository
+import com.studiocamera.core.data.camera.omsystem.OmSystemCameraRepository
+import com.studiocamera.core.data.camera.nikon.NikonCameraRepository
+import com.studiocamera.core.data.camera.fujifilm.FujifilmCameraRepository
 import com.studiocamera.core.data.camera.stub.StubCameraRepository
 import com.studiocamera.core.domain.repository.DiscoveryRepository
 import com.studiocamera.core.data.discovery.DiscoveryRepositoryImpl
@@ -77,6 +80,29 @@ val dataModule = module {
         )
     }
 
+    single<CameraRepository>(named("omsystemCamera")) {
+        val sessionManager: SessionManager = get(named("real"))
+        OmSystemCameraRepository(
+            httpClient = get(),
+            mjpegExtractor = get(),
+            endpoint = { sessionManager.currentEndpoint() ?: "" }
+        )
+    }
+
+    single<CameraRepository>(named("nikonCamera")) {
+        val sessionManager: SessionManager = get(named("real"))
+        NikonCameraRepository(
+            endpoint = { sessionManager.currentEndpoint() ?: "" }
+        )
+    }
+
+    single<CameraRepository>(named("fujifilmCamera")) {
+        val sessionManager: SessionManager = get(named("real"))
+        FujifilmCameraRepository(
+            endpoint = { sessionManager.currentEndpoint() ?: "" }
+        )
+    }
+
     single<CameraRepository>(named("stubCamera")) { StubCameraRepository() }
 
     // Camera Router exposing as the real implementation
@@ -86,7 +112,10 @@ val dataModule = module {
             brandRepositories = mapOf(
                 CameraBrand.Sony to get(named("sonyCamera")),
                 CameraBrand.Canon to get(named("canonCamera")),
-                CameraBrand.Panasonic to get(named("panasonicCamera"))
+                CameraBrand.Panasonic to get(named("panasonicCamera")),
+                CameraBrand.OmSystem to get(named("omsystemCamera")),
+                CameraBrand.Nikon to get(named("nikonCamera")),
+                CameraBrand.Fujifilm to get(named("fujifilmCamera"))
             ),
             externalScope = get(named("appScope"))
         )

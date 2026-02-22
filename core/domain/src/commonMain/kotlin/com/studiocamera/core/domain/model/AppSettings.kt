@@ -10,7 +10,8 @@ data class AppSettings(
     val autoReconnect: Boolean = true,
     val keepScreenOn: Boolean = true,
     val showBatteryWarnings: Boolean = true,
-    val developerMode: Boolean = false
+    val developerMode: Boolean = false,
+    val onboardingCompleted: Boolean = false
 )
 
 @Serializable

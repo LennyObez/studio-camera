@@ -94,21 +94,30 @@ class SessionManagerImpl(
                 return
             }
 
-            // For Sony cameras, discover API endpoint using brand-specific discovery
+            // Brand-specific API endpoint discovery
             var endpoint = device.endpoint
-            if (isSonyCamera(device) && brandApiDiscovery != null) {
-                Logger.i(TAG) { "Detected Sony camera, starting API discovery" }
+            if (device.cameraBrand != com.studiocamera.core.domain.model.CameraBrand.Unknown && brandApiDiscovery != null) {
                 val gatewayIp = extractGatewayIp(device.endpoint)
-                val linkAddress = getCurrentLinkAddress()
-                
-                Logger.i(TAG) { "Gateway IP: $gatewayIp (from endpoint: ${device.endpoint})" }
-                if (linkAddress != null) {
-                    Logger.d(TAG) { "Link address: $linkAddress" }
-                } else {
-                    Logger.d(TAG) { "Link address not available, will probe gateway IPs only" }
+                Logger.i(TAG) { "Starting ${device.cameraBrand} API discovery, gateway: $gatewayIp" }
+
+                val discoveryResult = when (device.cameraBrand) {
+                    com.studiocamera.core.domain.model.CameraBrand.Sony -> {
+                        val linkAddress = getCurrentLinkAddress()
+                        brandApiDiscovery.discoverSony(gatewayIp, linkAddress)
+                    }
+                    com.studiocamera.core.domain.model.CameraBrand.Canon ->
+                        brandApiDiscovery.discoverCanon(gatewayIp)
+                    com.studiocamera.core.domain.model.CameraBrand.Panasonic ->
+                        brandApiDiscovery.discoverPanasonic(gatewayIp)
+                    com.studiocamera.core.domain.model.CameraBrand.OmSystem ->
+                        brandApiDiscovery.discoverOmSystem(gatewayIp)
+                    com.studiocamera.core.domain.model.CameraBrand.Nikon ->
+                        brandApiDiscovery.discoverNikon(gatewayIp)
+                    com.studiocamera.core.domain.model.CameraBrand.Fujifilm ->
+                        brandApiDiscovery.discoverFujifilm(gatewayIp)
+                    else -> null
                 }
-                
-                val discoveryResult = brandApiDiscovery.discoverSony(gatewayIp, linkAddress)
+
                 if (discoveryResult != null) {
                     endpoint = discoveryResult.endpoint
                     Logger.i(TAG) { "API discovered: ${discoveryResult.endpoint}, MJPEG=${discoveryResult.supportsMjpeg}, verified=${discoveryResult.verified}" }
@@ -196,6 +205,7 @@ class SessionManagerImpl(
         // Exponential backoff: 1s, 2s, 4s, 8s, 16s, 30s cap
         val backoffMs = minOf(1000L * (1L shl reconnectAttempts), MAX_BACKOFF_MS)
         reconnectAttempts++
+        connectionStateManager.updateReconnectAttempt(reconnectAttempts, MAX_RECONNECT_RETRIES)
         delay(backoffMs)
 
         try {
@@ -328,10 +338,6 @@ class SessionManagerImpl(
     private suspend fun updateState(newState: ConnectionState) {
         _state.value = newState
         _events.emit(SessionEvent.StateChanged(newState))
-    }
-
-    private fun isSonyCamera(device: PairedDevice): Boolean {
-        return device.cameraBrand == com.studiocamera.core.domain.model.CameraBrand.Sony
     }
 
     /**

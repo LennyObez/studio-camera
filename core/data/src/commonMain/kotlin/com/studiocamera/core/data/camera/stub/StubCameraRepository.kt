@@ -13,7 +13,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.emptyFlow
 
 /**
- * Stub camera repository for brands whose remote API is not yet implemented.
+ * Fallback camera repository for unrecognized camera brands.
  * Returns user-friendly error messages instead of crashing.
  */
 class StubCameraRepository(
@@ -43,8 +43,8 @@ class StubCameraRepository(
         ApiResult.Error(
             SessionError.Unknown(
                 IllegalStateException(
-                    "$brandName remote control is coming soon. " +
-                        "Currently supported: Sony, Canon, Panasonic/Lumix."
+                    "$brandName camera is not recognized. " +
+                        "Supported brands: Sony, Canon, Nikon, Fujifilm, Panasonic/Lumix, OM System."
                 )
             )
         )

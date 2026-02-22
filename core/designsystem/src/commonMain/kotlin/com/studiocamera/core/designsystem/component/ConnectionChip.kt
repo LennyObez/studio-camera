@@ -34,6 +34,7 @@ import com.studiocamera.core.domain.model.ConnectionState
 fun ConnectionChip(
     state: ConnectionState,
     deviceName: String?,
+    reconnectAttempt: Int = 0,
     onRetryClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
@@ -43,7 +44,10 @@ fun ConnectionChip(
         ConnectionState.Authenticating -> StudioColors.Connecting to "Authenticating..."
         ConnectionState.Binding -> StudioColors.Connecting to "Binding..."
         ConnectionState.Connected -> StudioColors.Connected to "Connected to ${deviceName ?: "device"}"
-        ConnectionState.Reconnecting -> StudioColors.Reconnecting to "Reconnecting..."
+        ConnectionState.Reconnecting -> {
+            val label = if (reconnectAttempt >= 2) "Reconnecting ($reconnectAttempt/10)..." else "Reconnecting..."
+            StudioColors.Reconnecting to label
+        }
         ConnectionState.Failed -> StudioColors.Error to "Connection failed"
     }
 
