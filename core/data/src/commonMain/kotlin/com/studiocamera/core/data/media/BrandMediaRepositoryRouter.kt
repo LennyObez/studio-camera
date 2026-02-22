@@ -19,6 +19,8 @@ class BrandMediaRepositoryRouter(
     private val defaultRepository: MediaRepository
 ) : MediaRepository {
 
+    private val pageCache = MediaPageCache()
+
     private fun currentRepo(): MediaRepository {
         val brand = connectionStateManager.connectedDevice.value?.cameraBrand ?: CameraBrand.Unknown
         return brandRepositories[brand] ?: defaultRepository
@@ -29,7 +31,21 @@ class BrandMediaRepositoryRouter(
         filter: MediaFilter,
         sort: MediaSort,
         pageSize: Int
-    ): ApiResult<MediaPage> = currentRepo().fetchPage(cursor, filter, sort, pageSize)
+    ): ApiResult<MediaPage> {
+        val cacheKey = "${cursor ?: "null"}:${filter.name}:${sort.name}:$pageSize"
+
+        // Return cached page if available and fresh
+        val cached = pageCache.get(cacheKey)
+        if (cached is MediaPage) {
+            return ApiResult.Success(cached)
+        }
+
+        val result = currentRepo().fetchPage(cursor, filter, sort, pageSize)
+        if (result is ApiResult.Success) {
+            pageCache.put(cacheKey, result.data)
+        }
+        return result
+    }
 
     override suspend fun getDetail(id: String): ApiResult<MediaItem> = currentRepo().getDetail(id)
 
@@ -42,5 +58,9 @@ class BrandMediaRepositoryRouter(
         }
     }
 
-    override suspend fun deleteMedia(id: String): ApiResult<Unit> = currentRepo().deleteMedia(id)
+    override suspend fun deleteMedia(id: String): ApiResult<Unit> {
+        // Invalidate page cache on delete since the list has changed
+        pageCache.clear()
+        return currentRepo().deleteMedia(id)
+    }
 }

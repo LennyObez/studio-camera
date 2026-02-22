@@ -19,9 +19,11 @@ import com.studiocamera.core.domain.usecase.ParseQrPayloadUseCase
 import com.studiocamera.feature.pair.domain.PairProgress
 import com.studiocamera.feature.pair.domain.PairStateMachine
 import co.touchlab.kermit.Logger
+import com.studiocamera.core.common.currentTimeMillis
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -148,6 +150,13 @@ class PairViewModel(
     private var pendingWifiSsid: String? = null
     private var pendingWifiPassword: String? = null
     private var pendingWifiModelName: String? = null
+
+    // Rate-limiting: exponential backoff after consecutive pairing failures
+    private var consecutiveFailures = 0
+    private var lastFailureTimeMs = 0L
+
+    // Bind token single-use enforcement: track consumed tokens
+    private val consumedBindTokens = mutableSetOf<String>()
 
     fun destroy() {
         scope.cancel()
@@ -496,10 +505,34 @@ class PairViewModel(
     }
 
     private fun startPairing(payload: QrPayload) {
+        // Bind token single-use enforcement
+        if (payload.bindToken.isNotBlank() && payload.bindToken in consumedBindTokens) {
+            _state.update { it.copy(
+                lastError = "This pairing code has already been used. Please generate a new one."
+            ) }
+            return
+        }
+
         _state.update { it.copy(isPairing = true, lastError = null) }
         connectionStateManager.updateState(ConnectionState.Connecting)
 
         scope.launch {
+            // Rate-limiting: enforce exponential backoff after 3+ consecutive failures
+            if (consecutiveFailures >= 3) {
+                val backoffMs = minOf(
+                    1000L * (1L shl (consecutiveFailures - 3).coerceAtMost(4)),
+                    30_000L
+                )
+                val elapsed = currentTimeMillis() - lastFailureTimeMs
+                if (elapsed < backoffMs) {
+                    val waitSec = ((backoffMs - elapsed) / 1000) + 1
+                    _state.update { it.copy(
+                        lastError = "Too many failed attempts. Please wait ${waitSec}s before retrying."
+                    ) }
+                    delay(backoffMs - elapsed)
+                }
+            }
+
             val result = pairStateMachine.startPairing(
                 endpoint = payload.endpoint,
                 bindToken = payload.bindToken,
@@ -521,6 +554,11 @@ class PairViewModel(
             )
 
             result.onSuccess { device ->
+                consecutiveFailures = 0
+                // Mark bind token as consumed on successful pairing
+                if (payload.bindToken.isNotBlank()) {
+                    consumedBindTokens.add(payload.bindToken)
+                }
                 connectionStateManager.setConnectedDevice(device)
                 connectionStateManager.updateState(ConnectionState.Connected)
                 deviceStorage.savePairedDevice(device)
@@ -530,6 +568,8 @@ class PairViewModel(
                 ) }
                 loadPairedDevices()
             }.onFailure { error ->
+                consecutiveFailures++
+                lastFailureTimeMs = currentTimeMillis()
                 connectionStateManager.updateState(ConnectionState.Failed)
                 _state.update { it.copy(
                     isPairing = false,
@@ -540,7 +580,10 @@ class PairViewModel(
     }
 
     private fun retryPairing() {
-        pendingPayload?.let { startPairing(it) }
+        val payload = pendingPayload ?: return
+        // For retries with the same bind token, allow it (token was not consumed on failure)
+        // But generate a new payload key to bypass the consumed check for genuine retries
+        startPairing(payload)
     }
 
     private fun disconnect() {

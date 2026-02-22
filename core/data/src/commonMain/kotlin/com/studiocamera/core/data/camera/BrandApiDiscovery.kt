@@ -9,7 +9,10 @@ import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
 import io.ktor.http.ContentType
 import io.ktor.http.contentType
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
+import com.studiocamera.core.network.TcpSocket
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -116,6 +119,143 @@ class BrandApiDiscovery(private val httpClient: HttpClient) {
         } catch (e: Exception) {
             Logger.d(TAG) { "Sony probe at $endpoint failed: ${e.message}" }
             null
+        }
+    }
+
+    /**
+     * Discovers OM System (Olympus) OPC endpoint.
+     * OM System cameras expose HTTP at 192.168.0.10 by default.
+     */
+    suspend fun discoverOmSystem(gatewayIp: String): DiscoveryResult? {
+        Logger.d(TAG) { "OM System discovery — gateway: $gatewayIp" }
+
+        // OM System cameras use a fixed IP (192.168.0.10) in Wi-Fi Direct mode
+        val candidateIps = mutableListOf(gatewayIp, "192.168.0.10")
+
+        for (ip in candidateIps) {
+            val endpoint = "http://$ip"
+            try {
+                val response: HttpResponse = httpClient.get("$endpoint/get_caminfo.cgi")
+                if (response.status.value in 200..299) {
+                    Logger.i(TAG) { "OM System API discovered at $endpoint" }
+                    return DiscoveryResult(endpoint = endpoint, verified = true, supportsMjpeg = true)
+                }
+            } catch (e: Exception) {
+                Logger.d(TAG) { "OM System probe at $endpoint failed: ${e.message}" }
+            }
+        }
+
+        // Fallback
+        val fallback = "http://192.168.0.10"
+        Logger.w(TAG) { "OM System discovery unverified, using fallback: $fallback" }
+        return DiscoveryResult(endpoint = fallback, verified = false, supportsMjpeg = true)
+    }
+
+    /**
+     * Discovers Canon CCAPI endpoint.
+     * Canon cameras expose CCAPI on port 8080 or 80.
+     */
+    suspend fun discoverCanon(gatewayIp: String): DiscoveryResult? {
+        Logger.d(TAG) { "Canon discovery — gateway: $gatewayIp" }
+
+        val candidateEndpoints = listOf(
+            "http://$gatewayIp:8080",
+            "http://$gatewayIp"
+        )
+
+        for (endpoint in candidateEndpoints) {
+            try {
+                val response: HttpResponse = httpClient.get("$endpoint/ccapi/ver100/deviceinformation")
+                if (response.status.value in 200..299) {
+                    Logger.i(TAG) { "Canon CCAPI discovered at $endpoint" }
+                    return DiscoveryResult(endpoint = endpoint, verified = true, supportsMjpeg = true)
+                }
+            } catch (e: Exception) {
+                Logger.d(TAG) { "Canon probe at $endpoint failed: ${e.message}" }
+            }
+        }
+
+        val fallback = "http://$gatewayIp:8080"
+        Logger.w(TAG) { "Canon discovery unverified, using fallback: $fallback" }
+        return DiscoveryResult(endpoint = fallback, verified = false, supportsMjpeg = true)
+    }
+
+    /**
+     * Discovers Panasonic cam.cgi endpoint.
+     * Panasonic cameras expose cam.cgi on port 80.
+     */
+    suspend fun discoverPanasonic(gatewayIp: String): DiscoveryResult? {
+        Logger.d(TAG) { "Panasonic discovery — gateway: $gatewayIp" }
+
+        val candidateIps = listOf(gatewayIp, "192.168.54.1", "192.168.1.1")
+
+        for (ip in candidateIps) {
+            val endpoint = "http://$ip"
+            try {
+                val response: HttpResponse = httpClient.get("$endpoint/cam.cgi?mode=getinfo&type=capability")
+                if (response.status.value in 200..299) {
+                    Logger.i(TAG) { "Panasonic cam.cgi discovered at $endpoint" }
+                    return DiscoveryResult(endpoint = endpoint, verified = true, supportsMjpeg = false)
+                }
+            } catch (e: Exception) {
+                Logger.d(TAG) { "Panasonic probe at $endpoint failed: ${e.message}" }
+            }
+        }
+
+        val fallback = "http://$gatewayIp"
+        Logger.w(TAG) { "Panasonic discovery unverified, using fallback: $fallback" }
+        return DiscoveryResult(endpoint = fallback, verified = false, supportsMjpeg = false)
+    }
+
+    /**
+     * Discovers Nikon PTP/IP endpoint.
+     * Nikon cameras listen for PTP/IP on port 15740.
+     */
+    suspend fun discoverNikon(gatewayIp: String): DiscoveryResult? {
+        Logger.d(TAG) { "Nikon discovery — gateway: $gatewayIp" }
+
+        return if (probeTcpPort(gatewayIp, 15740)) {
+            val endpoint = "http://$gatewayIp:15740"
+            Logger.i(TAG) { "Nikon PTP/IP discovered at $gatewayIp:15740" }
+            DiscoveryResult(endpoint = endpoint, verified = true, supportsMjpeg = false)
+        } else {
+            val endpoint = "http://$gatewayIp:15740"
+            Logger.w(TAG) { "Nikon PTP/IP probe failed, using fallback: $endpoint" }
+            DiscoveryResult(endpoint = endpoint, verified = false, supportsMjpeg = false)
+        }
+    }
+
+    /**
+     * Discovers Fujifilm PTP/IP variant endpoint.
+     * Fujifilm cameras use non-standard port 55740 for PTP/IP.
+     */
+    suspend fun discoverFujifilm(gatewayIp: String): DiscoveryResult? {
+        Logger.d(TAG) { "Fujifilm discovery — gateway: $gatewayIp" }
+
+        return if (probeTcpPort(gatewayIp, 55740)) {
+            val endpoint = "http://$gatewayIp:55740"
+            Logger.i(TAG) { "Fujifilm PTP/IP discovered at $gatewayIp:55740" }
+            DiscoveryResult(endpoint = endpoint, verified = true, supportsMjpeg = false)
+        } else {
+            val endpoint = "http://$gatewayIp:55740"
+            Logger.w(TAG) { "Fujifilm PTP/IP probe failed, using fallback: $endpoint" }
+            DiscoveryResult(endpoint = endpoint, verified = false, supportsMjpeg = false)
+        }
+    }
+
+    /**
+     * Probes whether a TCP port is open by attempting a quick connect.
+     * Runs the blocking TCP connect on the IO dispatcher.
+     */
+    private suspend fun probeTcpPort(host: String, port: Int): Boolean {
+        return withContext(Dispatchers.IO) {
+            try {
+                val socket = TcpSocket(host, port, timeoutMs = 3_000)
+                socket.close()
+                true
+            } catch (_: Exception) {
+                false
+            }
         }
     }
 

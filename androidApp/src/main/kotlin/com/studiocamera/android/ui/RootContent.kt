@@ -60,6 +60,7 @@ import com.studiocamera.core.domain.model.ConnectionState
 import com.studiocamera.core.domain.model.SubscriptionState
 import com.studiocamera.core.domain.repository.BillingRepository
 import com.studiocamera.core.domain.repository.SettingsRepository
+import com.studiocamera.core.domain.session.ConnectionStateManager
 import com.studiocamera.core.domain.session.SessionManager
 import com.studiocamera.core.ui.navigation.RootComponent
 import com.studiocamera.core.ui.navigation.Tab
@@ -72,6 +73,7 @@ import com.studiocamera.feature.pair.presentation.PairEvent
 import com.studiocamera.feature.pair.presentation.PairScreen
 import com.studiocamera.feature.pair.presentation.PairSideEffect
 import com.studiocamera.feature.pair.presentation.PairViewModel
+import com.studiocamera.feature.pair.presentation.component.OnboardingOverlay
 import com.studiocamera.feature.settings.presentation.SettingsScreen
 import kotlinx.coroutines.launch
 
@@ -95,6 +97,8 @@ fun RootContent(
         val sessionManager: SessionManager = koinInject()
         val billingRepository: BillingRepository = koinInject()
         val subscriptionState by billingRepository.subscriptionState.collectAsState()
+        val connectionStateManager: ConnectionStateManager = koinInject()
+        val reconnectAttempt by connectionStateManager.reconnectAttempt.collectAsState()
 
         // Camera permission launcher
         var pendingCameraPermissionCallback by remember { mutableStateOf<(() -> Unit)?>(null) }
@@ -286,6 +290,9 @@ fun RootContent(
             }
         }
 
+        // First-launch onboarding overlay
+        val showOnboarding = !appSettings.onboardingCompleted
+
         if (isLandscape) {
             // Landscape: NavigationRail on the left, no top bar — maximize screen space
             Row(modifier = modifier.fillMaxSize()) {
@@ -296,6 +303,7 @@ fun RootContent(
                         ConnectionChip(
                             state = connectionState,
                             deviceName = connectedDevice?.displayName,
+                            reconnectAttempt = reconnectAttempt,
                             onRetryClick = {
                                 scope.launch { sessionManager.reconnect() }
                             },
@@ -328,6 +336,14 @@ fun RootContent(
                     SnackbarHost(
                         hostState = snackbarHostState,
                         modifier = Modifier.align(Alignment.BottomCenter)
+                    )
+                    OnboardingOverlay(
+                        visible = showOnboarding,
+                        onComplete = {
+                            scope.launch {
+                                settingsRepository.updateSettings { it.copy(onboardingCompleted = true) }
+                            }
+                        }
                     )
                 }
             }
@@ -383,6 +399,14 @@ fun RootContent(
             ) { innerPadding ->
                 Box(modifier = Modifier.padding(innerPadding)) {
                     contentBlock()
+                    OnboardingOverlay(
+                        visible = showOnboarding,
+                        onComplete = {
+                            scope.launch {
+                                settingsRepository.updateSettings { it.copy(onboardingCompleted = true) }
+                            }
+                        }
+                    )
                 }
             }
         }
