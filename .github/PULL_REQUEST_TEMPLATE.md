@@ -15,13 +15,13 @@
 - [ ] No new placeholders or TODOs
 - [ ] Documentation updated (if applicable)
 
-## Security Impact
+## Security impact
 
 <!-- Describe any security implications, or write "None" -->
 
 None
 
-## Performance Impact
+## Performance impact
 
 <!-- Describe any performance implications, or write "None" -->
 

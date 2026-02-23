@@ -1,4 +1,4 @@
-# Studio Camera — iOS App
+# Studio Camera - iOS app
 
 ## Requirements
 
@@ -7,7 +7,7 @@
 - **CocoaPods** (if using pods for additional native deps)
 - Android Studio / IntelliJ with KMP plugin (for shared code editing)
 
-## Build Steps
+## Build steps
 
 ### 1. Build the shared KMP framework
 
@@ -28,7 +28,7 @@ open iosApp/iosApp.xcodeproj
 - Choose an iOS 16+ simulator or connected device
 - Build and run (Cmd+R)
 
-## iOS `actual` Implementations Needed
+## iOS `actual` implementations needed
 
 The following `expect` declarations in shared KMP code need iOS `actual` implementations:
 
@@ -42,17 +42,17 @@ The following `expect` declarations in shared KMP code need iOS `actual` impleme
 
 ### Priority for iOS v1
 
-1. **SecureStorage** — Keychain Services wrapper (done)
-2. **LiveViewSurface** — UIKit `UIImageView` with MJPEG frame rendering
-3. **MdnsDiscoveryEngine** — `NWBrowser` or `NetServiceBrowser` for Bonjour
-4. **PlatformDownloader** — `PHPhotoLibrary` for saving to camera roll
+1. **SecureStorage**: Keychain Services wrapper (done)
+2. **LiveViewSurface**: UIKit `UIImageView` with MJPEG frame rendering
+3. **MdnsDiscoveryEngine**: `NWBrowser` or `NetServiceBrowser` for Bonjour
+4. **PlatformDownloader**: `PHPhotoLibrary` for saving to camera roll
 
-## Architecture Notes
+## Architecture notes
 
-- Shared UI is Compose Multiplatform — renders natively on iOS via Skiko
+- Shared UI is Compose Multiplatform, renders natively on iOS via Skiko
 - Navigation uses Decompose (works cross-platform)
-- DI uses Koin — iOS entry point initializes Koin in `StudioCameraApp.swift`
-- NFC pairing: iOS uses Core NFC (`NFCNDEFReaderSession`) — needs separate implementation
+- DI uses Koin. iOS entry point initializes Koin in `StudioCameraApp.swift`
+- NFC pairing: iOS uses Core NFC (`NFCNDEFReaderSession`), needs separate implementation
 - Camera permission: iOS uses `AVCaptureDevice.requestAccess`
 
 ## CI
