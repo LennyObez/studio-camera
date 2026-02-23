@@ -8,11 +8,8 @@ import com.studiocamera.core.data.discovery.MdnsDiscoveryEngine
 import com.studiocamera.core.data.platform.PlatformDownloader
 import com.studiocamera.core.domain.model.ConnectionState
 import com.studiocamera.core.domain.repository.BillingRepository
-import com.studiocamera.core.domain.repository.CameraRepository
 import com.studiocamera.core.domain.repository.DeviceStorageRepository
-import com.studiocamera.core.domain.repository.MediaRepository
 import com.studiocamera.core.domain.session.ConnectionStateManager
-import com.studiocamera.core.domain.session.SessionManager
 import com.studiocamera.core.network.TokenRefreshConfig
 import com.studiocamera.core.storage.SecureStorage
 import org.koin.core.qualifier.named
@@ -22,6 +19,7 @@ import org.koin.dsl.module
  * iOS-specific Koin module — mirrors Android's `coreModule` from AppModule.kt.
  *
  * Key difference: iOS platform classes have no-arg constructors (no `Context` needed).
+ * Bridge module is shared via `com.studiocamera.core.data.di.bridgeModule`.
  */
 val iosCoreModule = module {
     single { ConnectionStateManager() }
@@ -57,24 +55,5 @@ val iosCoreModule = module {
                 connectionStateManager.updateState(ConnectionState.Failed)
             }
         }
-    }
-}
-
-/**
- * Bridge module: provides unqualified bindings that delegate to "real" or "mock"
- * based on MockModeManager state.
- */
-val iosBridgeModule = module {
-    factory<SessionManager> {
-        val mockMode: MockModeManager = get()
-        if (mockMode.isMockActive.value) get(named("mock")) else get(named("real"))
-    }
-    factory<CameraRepository> {
-        val mockMode: MockModeManager = get()
-        if (mockMode.isMockActive.value) get(named("mock")) else get(named("real"))
-    }
-    factory<MediaRepository> {
-        val mockMode: MockModeManager = get()
-        if (mockMode.isMockActive.value) get(named("mock")) else get(named("real"))
     }
 }

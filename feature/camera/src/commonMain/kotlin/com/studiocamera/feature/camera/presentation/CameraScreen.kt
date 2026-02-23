@@ -26,7 +26,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -39,16 +38,11 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
-import com.studiocamera.core.common.MockModeManager
 import com.studiocamera.core.designsystem.component.ConnectionGate
 import com.studiocamera.core.designsystem.component.rememberSessionErrorState
-import com.studiocamera.core.domain.model.ApiResult
 import com.studiocamera.core.domain.model.ConnectionState
 import com.studiocamera.core.domain.model.DeviceCapabilities
 import com.studiocamera.core.domain.model.FlashMode
-import com.studiocamera.core.domain.repository.CameraRepository
-import com.studiocamera.core.domain.repository.SettingsRepository
-import com.studiocamera.core.domain.session.ConnectionStateManager
 import com.studiocamera.core.domain.session.SessionManager
 import com.studiocamera.feature.camera.presentation.component.CameraTopBar
 import com.studiocamera.feature.camera.presentation.component.CaptureButton
@@ -70,8 +64,6 @@ import com.studiocamera.feature.camera.presentation.overlay.OverlayConfig
 import com.studiocamera.feature.camera.presentation.overlay.SafeZone916Overlay
 import com.studiocamera.feature.camera.presentation.overlay.SafeZoneOverlay
 import com.studiocamera.feature.camera.presentation.overlay.ZebraOverlay
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 import kotlin.math.roundToInt
@@ -103,94 +95,26 @@ fun CameraScreen(
 
 @Composable
 private fun CameraContent(connectionState: ConnectionState, onNavigateToMedia: () -> Unit) {
-    val cameraRepository: CameraRepository = koinInject()
-    val sessionManager: SessionManager = koinInject()
-    val settingsRepository: SettingsRepository = koinInject()
-    val mockModeManager: MockModeManager = koinInject()
-    val connectionStateManager: ConnectionStateManager = koinInject()
-    val isMockMode by mockModeManager.isMockActive.collectAsState()
-    val cameraState by cameraRepository.cameraState.collectAsState()
-    val appSettings by settingsRepository.settings.collectAsState()
-    val scope = rememberCoroutineScope()
+    val viewModel: CameraViewModel = koinInject()
+    val viewState by viewModel.state.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
-    val capabilities = sessionManager.currentCapabilities() ?: DeviceCapabilities()
+    val scope = rememberCoroutineScope()
 
-    // Screen state
-    var screenState by remember(appSettings.defaultGrid, appSettings.defaultSafeZone) {
-        mutableStateOf(
-            CameraScreenState(
-                overlayConfig = OverlayConfig(
-                    gridType = if (appSettings.defaultGrid) GridType.RuleOfThirds else GridType.None,
-                    showSafeZone = appSettings.defaultSafeZone
-                )
-            )
-        )
-    }
+    val cameraState = viewState.cameraState
+    val screenState = viewState.screenState
+    val isMockMode = viewState.isMockMode
+    val capabilities = viewState.capabilities
+    val focusTapPosition = viewState.focusTapPosition
+    val overlayConfig = screenState.overlayConfig
+    val frameFlow = remember(viewModel) { viewModel.frameFlow }
 
-    // Sync initial shoot mode to the UI state
-    LaunchedEffect(cameraState.valuesReported) {
-        if (cameraState.valuesReported) {
-            val actualMode = if (cameraState.shootMode == "movie") CaptureMode.Video else CaptureMode.Photo
-            if (screenState.captureMode != actualMode) {
-                screenState = screenState.copy(captureMode = actualMode)
-            }
+    // Show snackbar messages from ViewModel
+    LaunchedEffect(viewState.snackbarMessage) {
+        viewState.snackbarMessage?.let { message ->
+            snackbarHostState.showSnackbar(message)
+            viewModel.dismissSnackbar()
         }
     }
-
-    // Recording timer
-    val recordingSeconds = remember { mutableIntStateOf(0) }
-    LaunchedEffect(cameraState.isRecording) {
-        if (cameraState.isRecording) {
-            recordingSeconds.intValue = 0
-            while (isActive) {
-                delay(1000)
-                recordingSeconds.intValue++
-            }
-        } else {
-            recordingSeconds.intValue = 0
-        }
-    }
-
-    // Timer countdown
-    LaunchedEffect(screenState.timerCountdown) {
-        val countdown = screenState.timerCountdown
-        if (countdown != null && countdown > 0) {
-            delay(1000)
-            screenState = screenState.copy(timerCountdown = countdown - 1)
-        } else if (countdown == 0) {
-            // Timer reached zero — fire capture
-            screenState = screenState.copy(timerCountdown = null)
-            when (screenState.captureMode) {
-                CaptureMode.Photo -> {
-                    if (cameraState.shootMode == "movie") {
-                        snackbarHostState.showSnackbar("Cannot take photo in video mode")
-                    } else {
-                        val result = cameraRepository.capturePhoto()
-                        when (result) {
-                            is ApiResult.Success -> snackbarHostState.showSnackbar("Photo captured")
-                            is ApiResult.Error -> snackbarHostState.showSnackbar("Capture failed: ${result.error.message}")
-                        }
-                    }
-                }
-                CaptureMode.Video -> {
-                    if (!cameraState.isRecording) {
-                        cameraRepository.startRecording()
-                    }
-                }
-            }
-        }
-    }
-
-    // Focus indicator
-    var focusTapPosition by remember { mutableStateOf<Pair<Float, Float>?>(null) }
-    LaunchedEffect(focusTapPosition) {
-        if (focusTapPosition != null) {
-            delay(1500)
-            focusTapPosition = null
-        }
-    }
-
-    val frameFlow = remember(cameraRepository) { cameraRepository.liveViewFrames() }
 
     // Animated zoom
     val animatedZoom by animateFloatAsState(
@@ -198,45 +122,7 @@ private fun CameraContent(connectionState: ConnectionState, onNavigateToMedia: (
         animationSpec = tween(200)
     )
 
-    // Capture handler
-    val onCapture: () -> Unit = {
-        if (screenState.timerSeconds > 0 && screenState.timerCountdown == null) {
-            // Start countdown
-            screenState = screenState.copy(timerCountdown = screenState.timerSeconds)
-        } else {
-            scope.launch {
-                when (screenState.captureMode) {
-                    CaptureMode.Photo -> {
-                        if (cameraState.shootMode == "movie") {
-                            snackbarHostState.showSnackbar("Cannot take photo in video mode")
-                        } else {
-                            val result = cameraRepository.capturePhoto()
-                            when (result) {
-                                is ApiResult.Success -> snackbarHostState.showSnackbar("Photo captured")
-                                is ApiResult.Error -> snackbarHostState.showSnackbar("Capture failed: ${result.error.message}")
-                            }
-                        }
-                    }
-                    CaptureMode.Video -> {
-                        if (cameraState.isRecording) {
-                            val result = cameraRepository.stopRecording()
-                            when (result) {
-                                is ApiResult.Success -> snackbarHostState.showSnackbar("Recording saved")
-                                is ApiResult.Error -> snackbarHostState.showSnackbar("Failed: ${result.error.message}")
-                            }
-                        } else {
-                            val result = cameraRepository.startRecording()
-                            if (result is ApiResult.Error) {
-                                snackbarHostState.showSnackbar("Failed: ${result.error.message}")
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    val overlayConfig = screenState.overlayConfig
+    val onCapture: () -> Unit = { viewModel.onCapture() }
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize().background(Color.Black)) {
         val isLandscape = maxWidth > maxHeight
@@ -251,27 +137,22 @@ private fun CameraContent(connectionState: ConnectionState, onNavigateToMedia: (
                 overlayConfig = overlayConfig,
                 animatedZoom = animatedZoom,
                 capabilities = capabilities,
-                recordingSeconds = recordingSeconds.intValue,
+                recordingSeconds = viewState.recordingSeconds,
                 focusTapPosition = focusTapPosition,
                 snackbarHostState = snackbarHostState,
                 onCapture = onCapture,
                 onNavigateToMedia = onNavigateToMedia,
-                onZoomChange = { screenState = screenState.copy(zoomLevel = it) },
-                onScreenStateChange = { screenState = it },
-                onSelectorClick = { screenState = screenState.copy(activeSelector = it) },
-                onFocusTap = { x, y, rawX, rawY ->
-                    focusTapPosition = rawX to rawY
-                    scope.launch { cameraRepository.tapToFocus(x, y) }
-                },
-                onShootModeChange = { mode -> scope.launch { cameraRepository.setShootMode(mode) } },
+                onZoomChange = { viewModel.onZoomChange(it) },
+                onScreenStateChange = { viewModel.updateScreenState(it) },
+                onSelectorClick = { viewModel.onSelectorClick(it) },
+                onFocusTap = { x, y, rawX, rawY -> viewModel.onFocusTap(x, y, rawX, rawY) },
+                onShootModeChange = { mode -> viewModel.onShootModeChange(mode) },
                 onUpdateSetting = { iso, ss, av, ev, flash, fmt, vRes, vFps ->
-                    scope.launch {
-                        cameraRepository.updateSettings(
-                            iso = iso, shutterSpeed = ss, aperture = av, ev = ev,
-                            flashMode = flash, imageFormat = fmt,
-                            videoResolution = vRes, videoFps = vFps
-                        )
-                    }
+                    viewModel.updateSettings(
+                        iso = iso, shutterSpeed = ss, aperture = av, ev = ev,
+                        flashMode = flash, imageFormat = fmt,
+                        videoResolution = vRes, videoFps = vFps
+                    )
                 }
             )
         } else {
@@ -284,27 +165,22 @@ private fun CameraContent(connectionState: ConnectionState, onNavigateToMedia: (
                 overlayConfig = overlayConfig,
                 animatedZoom = animatedZoom,
                 capabilities = capabilities,
-                recordingSeconds = recordingSeconds.intValue,
+                recordingSeconds = viewState.recordingSeconds,
                 focusTapPosition = focusTapPosition,
                 snackbarHostState = snackbarHostState,
                 onCapture = onCapture,
                 onNavigateToMedia = onNavigateToMedia,
-                onZoomChange = { screenState = screenState.copy(zoomLevel = it) },
-                onScreenStateChange = { screenState = it },
-                onSelectorClick = { screenState = screenState.copy(activeSelector = it) },
-                onFocusTap = { x, y, rawX, rawY ->
-                    focusTapPosition = rawX to rawY
-                    scope.launch { cameraRepository.tapToFocus(x, y) }
-                },
-                onShootModeChange = { mode -> scope.launch { cameraRepository.setShootMode(mode) } },
+                onZoomChange = { viewModel.onZoomChange(it) },
+                onScreenStateChange = { viewModel.updateScreenState(it) },
+                onSelectorClick = { viewModel.onSelectorClick(it) },
+                onFocusTap = { x, y, rawX, rawY -> viewModel.onFocusTap(x, y, rawX, rawY) },
+                onShootModeChange = { mode -> viewModel.onShootModeChange(mode) },
                 onUpdateSetting = { iso, ss, av, ev, flash, fmt, vRes, vFps ->
-                    scope.launch {
-                        cameraRepository.updateSettings(
-                            iso = iso, shutterSpeed = ss, aperture = av, ev = ev,
-                            flashMode = flash, imageFormat = fmt,
-                            videoResolution = vRes, videoFps = vFps
-                        )
-                    }
+                    viewModel.updateSettings(
+                        iso = iso, shutterSpeed = ss, aperture = av, ev = ev,
+                        flashMode = flash, imageFormat = fmt,
+                        videoResolution = vRes, videoFps = vFps
+                    )
                 }
             )
         }
@@ -316,25 +192,23 @@ private fun CameraContent(connectionState: ConnectionState, onNavigateToMedia: (
             selectorType = selector,
             cameraState = cameraState,
             screenState = screenState,
-            onDismiss = { screenState = screenState.copy(activeSelector = null) },
+            onDismiss = { viewModel.dismissSelector() },
             onUpdateSetting = { iso, ss, av, ev, flash, fmt, vRes, vFps ->
-                scope.launch {
-                    cameraRepository.updateSettings(
-                        iso = iso, shutterSpeed = ss, aperture = av, ev = ev,
-                        flashMode = flash, imageFormat = fmt,
-                        videoResolution = vRes, videoFps = vFps
-                    )
-                }
+                viewModel.updateSettings(
+                    iso = iso, shutterSpeed = ss, aperture = av, ev = ev,
+                    flashMode = flash, imageFormat = fmt,
+                    videoResolution = vRes, videoFps = vFps
+                )
             },
-            onUpdateScreenState = { screenState = it },
+            onUpdateScreenState = { viewModel.updateScreenState(it) },
             onUpdateWhiteBalance = { wb ->
-                scope.launch { cameraRepository.updateSettings(whiteBalance = wb) }
+                viewModel.updateSettings(whiteBalance = wb)
             },
             onUpdateExposureMode = { em ->
-                scope.launch { cameraRepository.updateSettings(exposureMode = em) }
+                viewModel.updateSettings(exposureMode = em)
             },
             onUpdatePhotoResolution = { pr ->
-                scope.launch { cameraRepository.updateSettings(photoResolution = pr) }
+                viewModel.updateSettings(photoResolution = pr)
             }
         )
     }

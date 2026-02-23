@@ -13,6 +13,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 data class SettingsUiState(
@@ -50,9 +51,10 @@ sealed class SettingsEvent {
 class SettingsViewModel(
     private val settingsRepository: SettingsRepository,
     private val deviceStorage: DeviceStorageRepository,
-    appVersion: String = "1.0.0"
+    appVersion: String = "1.0.0",
+    externalScope: CoroutineScope? = null
 ) {
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val scope = externalScope ?: CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     private val _state = MutableStateFlow(SettingsUiState(appVersion = appVersion))
     val state: StateFlow<SettingsUiState> = _state.asStateFlow()
@@ -76,11 +78,11 @@ class SettingsViewModel(
             is SettingsEvent.UpdateDefaultSafeZone -> updateSetting { it.copy(defaultSafeZone = event.enabled) }
             is SettingsEvent.UpdateDeveloperMode -> updateSetting { it.copy(developerMode = event.enabled) }
             is SettingsEvent.ForgetDevice -> {
-                _state.value = _state.value.copy(showForgetDeviceDialog = event.deviceId)
+                _state.update { it.copy(showForgetDeviceDialog = event.deviceId) }
             }
             SettingsEvent.ConfirmForgetDevice -> {
                 val deviceId = _state.value.showForgetDeviceDialog ?: return
-                _state.value = _state.value.copy(showForgetDeviceDialog = null)
+                _state.update { it.copy(showForgetDeviceDialog = null) }
                 scope.launch {
                     try {
                         deviceStorage.removePairedDevice(deviceId)
@@ -93,13 +95,13 @@ class SettingsViewModel(
                 }
             }
             SettingsEvent.DismissForgetDevice -> {
-                _state.value = _state.value.copy(showForgetDeviceDialog = null)
+                _state.update { it.copy(showForgetDeviceDialog = null) }
             }
             SettingsEvent.ShowClearDataDialog -> {
-                _state.value = _state.value.copy(showClearDataDialog = true)
+                _state.update { it.copy(showClearDataDialog = true) }
             }
             SettingsEvent.ConfirmClearData -> {
-                _state.value = _state.value.copy(showClearDataDialog = false)
+                _state.update { it.copy(showClearDataDialog = false) }
                 scope.launch {
                     try {
                         deviceStorage.clearAll()
@@ -113,7 +115,7 @@ class SettingsViewModel(
                 }
             }
             SettingsEvent.DismissClearData -> {
-                _state.value = _state.value.copy(showClearDataDialog = false)
+                _state.update { it.copy(showClearDataDialog = false) }
             }
             SettingsEvent.ResetToDefaults -> {
                 scope.launch {
@@ -130,22 +132,22 @@ class SettingsViewModel(
                 val newCount = _state.value.devTapCount + 1
                 if (newCount >= 7 && !_state.value.settings.developerMode) {
                     updateSetting { it.copy(developerMode = true) }
-                    _state.value = _state.value.copy(
+                    _state.update { it.copy(
                         devTapCount = 0,
                         showDeveloperModeSnackbar = true
-                    )
+                    ) }
                 } else {
-                    _state.value = _state.value.copy(devTapCount = newCount)
+                    _state.update { it.copy(devTapCount = newCount) }
                 }
             }
             SettingsEvent.DismissDeveloperSnackbar -> {
-                _state.value = _state.value.copy(showDeveloperModeSnackbar = false)
+                _state.update { it.copy(showDeveloperModeSnackbar = false) }
             }
             SettingsEvent.ShowFeedback -> {
-                _state.value = _state.value.copy(showFeedbackSheet = true)
+                _state.update { it.copy(showFeedbackSheet = true) }
             }
             SettingsEvent.DismissFeedback -> {
-                _state.value = _state.value.copy(showFeedbackSheet = false)
+                _state.update { it.copy(showFeedbackSheet = false) }
             }
         }
     }
@@ -165,7 +167,7 @@ class SettingsViewModel(
     private fun observeSettings() {
         scope.launch {
             settingsRepository.settings.collect { settings ->
-                _state.value = _state.value.copy(settings = settings)
+                _state.update { it.copy(settings = settings) }
             }
         }
     }
@@ -174,7 +176,7 @@ class SettingsViewModel(
         scope.launch {
             try {
                 val devices = deviceStorage.getPairedDevices()
-                _state.value = _state.value.copy(pairedDevices = devices)
+                _state.update { it.copy(pairedDevices = devices) }
             } catch (e: CancellationException) {
                 throw e
             } catch (_: Exception) {

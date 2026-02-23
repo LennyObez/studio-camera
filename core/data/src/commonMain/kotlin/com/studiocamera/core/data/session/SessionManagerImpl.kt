@@ -74,7 +74,7 @@ class SessionManagerImpl(
     }
 
     override suspend fun connect(device: PairedDevice) {
-        Logger.i(TAG) { "Connecting to ${device.deviceName} (Sony)" }
+        Logger.i(TAG) { "Connecting to ${device.deviceName} (${device.cameraBrand})" }
         currentDevice = device
         reconnectAttempts = 0
         updateState(ConnectionState.Connecting)
@@ -330,17 +330,8 @@ class SessionManagerImpl(
         _events.emit(SessionEvent.StateChanged(newState))
     }
 
-    /**
-     * Checks if the device is a Sony camera based on device name or endpoint
-     */
     private fun isSonyCamera(device: PairedDevice): Boolean {
-        val name = device.deviceName.lowercase()
-        val endpoint = device.endpoint.lowercase()
-        return name.contains("sony") || 
-               name.contains("alpha") || 
-               name.contains("ilce") ||
-               endpoint.contains("sony") ||
-               endpoint.contains("/sony/")
+        return device.cameraBrand == com.studiocamera.core.domain.model.CameraBrand.Sony
     }
 
     /**

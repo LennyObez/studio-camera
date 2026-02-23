@@ -17,6 +17,7 @@ class DeviceStorageImpl(
 
     companion object {
         private const val KEY_PAIRED_DEVICES = "paired_devices"
+        private const val KEY_WIFI_PREFIX = "wifi_"
         private const val KEY_FINGERPRINT_PREFIX = "fingerprint_"
         private const val KEY_SESSION_PREFIX = "session_"
     }
@@ -52,8 +53,21 @@ class DeviceStorageImpl(
             val devices = readDevicesUnlocked().filter { it.deviceId != deviceId }
             val encoded = json.encodeToString(devices)
             secureStorage.putString(KEY_PAIRED_DEVICES, encoded)
+            secureStorage.remove("$KEY_WIFI_PREFIX$deviceId")
             secureStorage.remove("$KEY_FINGERPRINT_PREFIX$deviceId")
             secureStorage.remove("$KEY_SESSION_PREFIX$deviceId")
+        }
+    }
+
+    override suspend fun saveWifiPassword(deviceId: String, password: String) {
+        storageMutex.withLock {
+            secureStorage.putString("$KEY_WIFI_PREFIX$deviceId", password)
+        }
+    }
+
+    override suspend fun getWifiPassword(deviceId: String): String? {
+        storageMutex.withLock {
+            return secureStorage.getString("$KEY_WIFI_PREFIX$deviceId")
         }
     }
 
