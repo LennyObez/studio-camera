@@ -1,20 +1,19 @@
 # Contributing
 
-Thanks for contributing to Studio Camera.
+Thanks for your interest in contributing to Studio Camera.
 
-Studio Camera is a KMP (Kotlin Multiplatform) mobile app targeting Android and iOS. Contributions must meet standards for
-correctness, security, performance, and maintainability.
+Studio Camera is a Kotlin Multiplatform app targeting Android and iOS. We care about correctness, security, performance, and keeping the codebase clean, and we expect contributions to meet those standards.
 
-## Quick rules
+## Ground rules
 
-- No placeholders. No TODO. No "example-only" code in production paths.
-- Kotlin: strict typing, explicit dependencies, no platform leaks in `commonMain`.
-- Compose: stateless composables where possible, state hoisting, Material 3 design system.
-- Docs: English only.
+- No placeholders, no TODOs, no "example-only" code in production paths.
+- Strict typing, explicit dependencies, no platform leaks in `commonMain`.
+- Stateless composables where possible, state hoisting, Material 3 design system.
+- English only for code, comments, and documentation.
 
-## Development setup
+## Getting set up
 
-### Prerequisites
+### What you'll need
 
 - JDK 25+
 - Android Studio (latest stable) or IntelliJ IDEA
@@ -22,39 +21,29 @@ correctness, security, performance, and maintainability.
 - Xcode 16+ (macOS only, for iOS builds)
 - Git
 
-### Install
+### Clone and build
 
 ```bash
 git clone https://github.com/LennyObez/studio-camera.git
 cd studio-camera
-```
 
-### Build
-
-```bash
-# Android debug build
+# Build a debug APK
 ./gradlew assembleDebug
 
-# Run on connected Android device
+# Run on a connected device
 ./gradlew installDebug
 
-# Run all checks
+# Run the full quality gate
 ./gradlew check
 ```
 
-### Quality gate
+Make sure `./gradlew check` passes before opening a PR. It's the same gate CI runs.
 
-Run the same checks as CI before opening a PR:
-
-```bash
-./gradlew check
-```
-
-## Repository structure
+## Repository layout
 
 ```
-androidApp/          Android application module
-iosApp/              iOS application (Swift + KMP)
+androidApp/          Android app module
+iosApp/              iOS app (Swift + KMP)
 core/
   common/            Platform utilities (expect/actual)
   domain/            Models, interfaces, use cases
@@ -62,13 +51,13 @@ core/
   network/           Ktor HTTP/WebSocket client
   storage/           Multiplatform-settings persistence
   designsystem/      Theme, typography, color tokens
-  ui/                Shared navigation (Decompose)
+  ui/                Navigation (Decompose)
 feature/
   pair/              QR/NFC/manual pairing
   discovery/         Network device discovery
   camera/            Live view and camera controls
   media/             Media library and transfer
-  mock/              Interactive device simulator
+  mock/              Device simulator
 build-logic/         Convention plugins
 gradle/              Version catalog and wrapper
 ```
@@ -77,118 +66,94 @@ gradle/              Version catalog and wrapper
 
 ### Kotlin
 
-- Prefer explicit dependencies (constructor injection via Koin).
-- Keep `commonMain` free of platform-specific code; use `expect`/`actual` declarations.
-- Public APIs must be typed and documented.
-- Exceptions must be typed; no silent failures.
-- Use `kotlinx-serialization` for all serialization; avoid reflection-based alternatives.
+- Use constructor injection via Koin for dependencies.
+- Keep `commonMain` free of platform-specific code. Use `expect`/`actual` declarations instead.
+- Public APIs should be typed and documented.
+- Handle errors explicitly; no silent failures.
+- Use `kotlinx-serialization` for all serialization (no reflection-based alternatives).
 
 ### Compose
 
-- Composables should be stateless where possible (state hoisting).
+- Prefer stateless composables with state hoisting.
 - Use the project design system (`core:designsystem`) for theming.
-- Preview annotations for all significant composables.
+- Add preview annotations for significant composables.
 - Follow Material 3 guidelines.
 
 ### Architecture
 
-- Unidirectional data flow: UI -> ViewModel/Component -> Repository -> Data source.
-- Navigation via Decompose components (not Compose Navigation).
-- DI via Koin modules scoped per feature.
-- Network layer uses Ktor with content negotiation and kotlinx-serialization.
+- Data flows in one direction: UI -> component -> repository -> data source.
+- Navigation uses Decompose components (not Compose Navigation).
+- DI uses Koin modules scoped per feature.
+- Networking uses Ktor with content negotiation and kotlinx-serialization.
 
 ## Testing
 
 - Add tests for any new behavior.
-- Cover edge cases and failure paths (especially connection/session handling).
-- Prefer deterministic tests:
-  - avoid real timeouts where possible
-  - use fake/mock repositories for UI tests
-- Use integration tests when behavior depends on multiple components.
+- Cover edge cases and failure paths, especially around connection and session handling.
+- Keep tests deterministic. Avoid real timeouts, use fake/mock repositories.
+- Use integration tests when behavior spans multiple components.
 
-## Static analysis & formatting (mandatory)
+## Before you open a PR
 
-Before opening a PR, the full gate must pass:
+The full quality gate must pass locally:
 
-- Kotlin: `./gradlew check` (includes lint and unit tests)
-- Android lint: `./gradlew lintDebug`
-- Never commit secrets, API keys, or device credentials.
+```bash
+./gradlew check        # lint + unit tests
+./gradlew lintDebug    # Android lint
+```
+
+Never commit secrets, API keys, or device credentials.
 
 ## Performance
 
-If your change affects:
+If your change touches app startup, navigation transitions, live view rendering, session lifecycle, or media loading, include a brief performance note in the PR. Before/after measurements are appreciated when available.
 
-- app startup
-- navigation transitions
-- live view rendering
-- network session lifecycle
-- media loading/transfer
+## Documentation
 
-...include:
+Update relevant docs when you change features or APIs.
 
-- a brief performance note in the PR
-- before/after measurements if available
-
-## Documentation requirements
-
-Any feature change requires:
-
-- updating relevant module README or docs
-- documenting API changes
-
-## Branching and commits
+## Branches and commits
 
 ### Branch naming
 
-- `feat/<topic>`
-- `fix/<topic>`
-- `docs/<topic>`
-- `perf/<topic>`
-- `security/<topic>`
-- `refactor/<topic>`
+Use one of these prefixes: `feat/`, `fix/`, `docs/`, `perf/`, `security/`, `refactor/`
 
-### Commit messages (Conventional Commits)
+### Commit messages
 
-Format:
+We use [Conventional Commits](https://www.conventionalcommits.org/):
 
 ```
 <type>(<scope>): <imperative summary>
 ```
 
-Types: `feat`, `fix`, `docs`, `perf`, `refactor`, `test`, `ci`, `build`, `chore`, `security`
+**Types:** `feat`, `fix`, `docs`, `perf`, `refactor`, `test`, `ci`, `build`, `chore`, `security`
 
-Scope examples: `core`, `network`, `pair`, `discovery`, `camera`, `media`, `mock`, `ui`, `domain`, `data`, `storage`,
-`designsystem`, `android`, `ios`, `ci`
+**Scopes:** `core`, `network`, `pair`, `discovery`, `camera`, `media`, `mock`, `ui`, `domain`, `data`, `storage`, `designsystem`, `android`, `ios`, `ci`
 
 Examples:
-
 - `feat(pair): add QR code scanning with ML Kit`
 - `fix(network): handle WebSocket reconnect on session timeout`
 - `perf(camera): reduce live view frame decode latency`
-- `docs(readme): update build instructions`
 
 ## Pull requests
 
-A PR must include:
+Your PR should explain:
+- What problem it solves and why
+- What changed (key points)
+- Security impact (say "none" if not applicable)
+- Performance impact (say "none" if not applicable)
+- What tests were added or updated
 
-- problem statement (what and why)
-- what changed (key points)
-- security impact (explicitly "none" if applicable)
-- performance impact (explicitly "none" if applicable)
-- tests added/updated
-- docs updated
+### Checklist
 
-### PR checklist
-
-- [ ] Tests added/updated
+- [ ] Tests added or updated
 - [ ] `./gradlew check` passes locally
-- [ ] No new placeholders / TODOs
-- [ ] Docs updated
+- [ ] No new placeholders or TODOs
+- [ ] Docs updated if needed
 - [ ] Performance note included if relevant
 
 ## Security issues
 
-Do **not** open public issues for vulnerabilities.
-Follow `SECURITY.md` to report privately.
+Don't open public issues for vulnerabilities. Report them privately. See [SECURITY.md](SECURITY.md).
 
 Thanks for helping build Studio Camera.

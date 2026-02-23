@@ -1,4 +1,4 @@
-# Copilot Code Review Instructions
+# Copilot code review instructions
 
 You are reviewing a **Kotlin Multiplatform (KMP)** mobile app that controls professional cameras (Sony, Canon, Nikon, Fujifilm, Panasonic/Lumix, OM System) over Wi-Fi Direct. Targets Android (primary) and iOS via Compose Multiplatform.
 
@@ -42,7 +42,7 @@ Flag violations of these AGP 9.0 rules:
 
 - **Never commit secrets**: API keys, pairing tokens, device credentials, `.env` files
 - **Pairing tokens must never be logged**, even at debug level
-- **TLS required** for all network communication. Flag any `http://` URLs used for actual data transfer (note: camera Wi-Fi Direct APIs like Sony, Canon, Panasonic use `http://` over local network by design — this is expected)
+- **TLS required** for all network communication. Flag any `http://` URLs used for actual data transfer (note: camera Wi-Fi Direct APIs like Sony, Canon, Panasonic use `http://` over local network by design, this is expected)
 - **TLS certificate pinning**: Android uses `FingerprintTrustManager`, iOS uses `SecTrust` + `CC_SHA256`. Flag any pinning bypass or `TrustAllCerts`
 - **Encrypted storage**: Sensitive data must use `androidx.security:security-crypto` (Android) or Keychain (iOS)
 - **OWASP top 10**: Watch for injection, XSS in WebView content, improper certificate validation
@@ -67,7 +67,7 @@ Flag violations of these AGP 9.0 rules:
 
 ### Code quality
 
-- **UI text: sentence case always** — capitalize only the first word. "Aspect ratio guide", not "Aspect Ratio Guide"
+- **UI text: sentence case always**. Capitalize only the first word. "Aspect ratio guide", not "Aspect Ratio Guide"
 - **Namespace**: Must follow `com.studiocamera.${project.path}` convention
 - **No `java.*` in commonMain**: Only in `androidMain`/`jvmMain`. Use `expect`/`actual` for platform APIs
 - **No `kotlin.system.getTimeMillis()`**: Use project's `expect/actual currentTimeMillis()`
