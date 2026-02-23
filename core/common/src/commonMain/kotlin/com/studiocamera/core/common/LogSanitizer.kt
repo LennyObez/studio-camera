@@ -16,7 +16,14 @@ class SanitizingLogWriter(
         Regex("(fingerprint[\":]\\s*[\"']?)([A-Fa-f0-9:]{20,})", RegexOption.IGNORE_CASE),
     )
 
+    override fun isLoggable(tag: String, severity: Severity): Boolean {
+        // In release builds, suppress Debug and Verbose logs
+        if (isRelease && severity.ordinal < Severity.Info.ordinal) return false
+        return delegate.isLoggable(tag, severity)
+    }
+
     override fun log(severity: Severity, message: String, tag: String, throwable: Throwable?) {
+        if (!isLoggable(tag, severity)) return
         val sanitized = if (isRelease) sanitize(message) else message
         delegate.log(severity, sanitized, tag, throwable)
     }

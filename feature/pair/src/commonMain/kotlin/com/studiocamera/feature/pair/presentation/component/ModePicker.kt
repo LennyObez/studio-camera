@@ -43,7 +43,7 @@ fun ModePicker(
                 .padding(24.dp)
         ) {
             Text(
-                text = "Choose Mode",
+                text = "Choose mode",
                 style = MaterialTheme.typography.headlineMedium
             )
 
@@ -51,7 +51,7 @@ fun ModePicker(
 
             ModeCard(
                 icon = Icons.Default.CameraAlt,
-                title = "Live Control",
+                title = "Live control",
                 description = "Camera control and live view monitoring",
                 onClick = onSelectLiveControl
             )
@@ -60,7 +60,7 @@ fun ModePicker(
 
             ModeCard(
                 icon = Icons.Default.PhotoLibrary,
-                title = "Media Browser",
+                title = "Media browser",
                 description = "Browse and download captured media",
                 onClick = onSelectMediaBrowser
             )

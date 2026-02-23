@@ -10,6 +10,18 @@ plugins {
 val libs = extensions.getByType<VersionCatalogsExtension>().named("libs")
 
 kotlin {
+    // JVM target for running tests on any platform (Windows, macOS, Linux)
+    jvm {
+        compilerOptions {
+            jvmTarget.set(JvmTarget.JVM_17)
+        }
+    }
+
+    // Suppress expect/actual classes beta warning
+    compilerOptions {
+        freeCompilerArgs.add("-Xexpect-actual-classes")
+    }
+
     val namespaceSuffix = project.path.removePrefix(":").replace(":", ".")
     androidLibrary {
         namespace = "com.studiocamera.$namespaceSuffix"
@@ -32,12 +44,23 @@ kotlin {
         }
     }
 
+    // Align Java compilation with Kotlin JVM target
+    tasks.withType<JavaCompile>().configureEach {
+        sourceCompatibility = "17"
+        targetCompatibility = "17"
+    }
+
     sourceSets {
         commonMain.dependencies {
             implementation(libs.findLibrary("kotlinx-coroutines-core").get())
             implementation(libs.findLibrary("kotlinx-serialization-json").get())
             implementation(libs.findLibrary("kermit").get())
             implementation(libs.findLibrary("koin-core").get())
+        }
+        commonTest.dependencies {
+            implementation(libs.findLibrary("kotlin-test").get())
+            implementation(libs.findLibrary("kotlinx-coroutines-test").get())
+            implementation(libs.findLibrary("turbine").get())
         }
     }
 }

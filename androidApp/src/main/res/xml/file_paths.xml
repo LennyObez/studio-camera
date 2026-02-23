@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- Scoped storage: cache directory for temporary photo sharing -->
+    <cache-path name="cache" path="." />
+    <!-- External files directory for downloaded media -->
+    <external-files-path name="media" path="." />
+</paths>

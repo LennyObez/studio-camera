@@ -27,7 +27,7 @@ class RootComponent(
     val childStack: Value<ChildStack<Config, Child>> = childStack(
         source = navigation,
         serializer = Config.serializer(),
-        initialConfiguration = Config.Pair,
+        initialConfiguration = Config.Home,
         handleBackButton = true,
         childFactory = ::createChild
     )
@@ -40,43 +40,47 @@ class RootComponent(
         }
 
         val config = when (tab) {
-            Tab.Pair -> Config.Pair
+            Tab.Home -> Config.Home
             Tab.Discover -> Config.Discover
             Tab.Camera -> Config.Camera
             Tab.Media -> Config.Media
+            Tab.Settings -> Config.Settings
             Tab.Mock -> Config.Mock
         }
         navigation.bringToFront(config)
     }
 
-    fun navigateToPair() {
-        navigation.bringToFront(Config.Pair)
+    fun navigateToHome() {
+        navigation.bringToFront(Config.Home)
     }
 
     private fun createChild(config: Config, componentContext: ComponentContext): Child {
         return when (config) {
-            Config.Pair -> Child.Pair
+            Config.Home -> Child.Home
             Config.Discover -> Child.Discover
             Config.Camera -> Child.Camera
             Config.Media -> Child.Media
+            Config.Settings -> Child.Settings
             Config.Mock -> Child.Mock
         }
     }
 
     @Serializable
     sealed class Config {
-        @Serializable data object Pair : Config()
+        @Serializable data object Home : Config()
         @Serializable data object Discover : Config()
         @Serializable data object Camera : Config()
         @Serializable data object Media : Config()
+        @Serializable data object Settings : Config()
         @Serializable data object Mock : Config()
     }
 
     sealed class Child {
-        data object Pair : Child()
+        data object Home : Child()
         data object Discover : Child()
         data object Camera : Child()
         data object Media : Child()
+        data object Settings : Child()
         data object Mock : Child()
     }
 }

@@ -1,0 +1,10 @@
+Initial release of Studio Camera.
+
+- QR code and NFC device pairing
+- Live view with MJPEG streaming
+- Camera controls (ISO, shutter speed, aperture, EV, focus)
+- Grid and safe zone overlays
+- Media browser with download and sharing
+- Settings and preferences
+- Connection error handling with auto-reconnect
+- Dark and light themes

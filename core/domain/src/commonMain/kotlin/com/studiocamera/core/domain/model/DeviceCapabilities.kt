@@ -17,5 +17,10 @@ data class DeviceCapabilities(
     val supportsBle: Boolean = false,
     val supportsNfc: Boolean = false,
     val maxResolution: String = "1920x1080",
-    val supportedCodecs: List<String> = emptyList()
+    val supportedCodecs: List<String> = emptyList(),
+    val supportsFlash: Boolean = false,
+    val supportsImageFormat: Boolean = false,
+    val supportsVideoResolution: Boolean = false,
+    val supportsHdr: Boolean = false,
+    val supportsZoom: Boolean = false
 )

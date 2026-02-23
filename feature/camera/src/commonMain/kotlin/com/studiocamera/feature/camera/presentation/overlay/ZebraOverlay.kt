@@ -6,6 +6,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
 
 /**
  * Draws diagonal stripe pattern over overexposed pixels.
@@ -16,8 +17,7 @@ import androidx.compose.ui.graphics.Color
 fun ZebraOverlay(
     overexposedMap: Array<BooleanArray>?,
     modifier: Modifier = Modifier,
-    stripeColor: Color = Color.Red.copy(alpha = 0.6f),
-    stripeSpacing: Float = 8f
+    stripeColor: Color = Color.Red.copy(alpha = 0.6f)
 ) {
     if (overexposedMap == null || overexposedMap.isEmpty()) return
 
@@ -26,6 +26,7 @@ fun ZebraOverlay(
         val mapW = overexposedMap[0].size
         val scaleX = size.width / mapW
         val scaleY = size.height / mapH
+        val strokePx = 1.5.dp.toPx()
 
         for (y in overexposedMap.indices) {
             for (x in overexposedMap[y].indices) {
@@ -33,12 +34,11 @@ fun ZebraOverlay(
                     // Draw diagonal stripes in this cell
                     val cellX = x * scaleX
                     val cellY = y * scaleY
-                    // Simple diagonal line per cell
                     drawLine(
                         color = stripeColor,
                         start = Offset(cellX, cellY),
                         end = Offset(cellX + scaleX, cellY + scaleY),
-                        strokeWidth = 1.5f
+                        strokeWidth = strokePx
                     )
                 }
             }

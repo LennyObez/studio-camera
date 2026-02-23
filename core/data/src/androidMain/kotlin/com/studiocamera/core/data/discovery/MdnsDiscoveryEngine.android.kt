@@ -43,25 +43,60 @@ actual class MdnsDiscoveryEngine(
 
             override fun onServiceFound(serviceInfo: NsdServiceInfo) {
                 Logger.d(TAG) { "Service found: ${serviceInfo.serviceName}" }
-                nsdManager.resolveService(serviceInfo, object : NsdManager.ResolveListener {
-                    override fun onResolveFailed(info: NsdServiceInfo, errorCode: Int) {
-                        Logger.w(TAG) { "Resolve failed for ${info.serviceName}: $errorCode" }
-                    }
+                if (android.os.Build.VERSION.SDK_INT >= 34) {
+                    nsdManager.registerServiceInfoCallback(
+                        serviceInfo,
+                        { it.run() },
+                        object : NsdManager.ServiceInfoCallback {
+                            override fun onServiceInfoCallbackRegistrationFailed(errorCode: Int) {
+                                Logger.w(TAG) { "ServiceInfo callback registration failed: $errorCode" }
+                            }
+                            override fun onServiceUpdated(info: NsdServiceInfo) {
+                                val hostAddresses = info.hostAddresses
+                                val address = hostAddresses.firstOrNull()?.hostAddress ?: return
+                                val device = DiscoveredDevice(
+                                    deviceId = info.serviceName,
+                                    deviceName = info.serviceName,
+                                    endpoint = "https://$address:${info.port}",
+                                    transport = DiscoveryTransport.MDNS,
+                                    lastSeenAt = System.currentTimeMillis()
+                                )
+                                val current = _discoveredDevices.value.toMutableList()
+                                current.removeAll { it.deviceId == device.deviceId }
+                                current.add(device)
+                                _discoveredDevices.value = current
+                                nsdManager.unregisterServiceInfoCallback(this)
+                            }
+                            override fun onServiceLost() {
+                                Logger.d(TAG) { "Service lost during resolve" }
+                            }
+                            override fun onServiceInfoCallbackUnregistered() {}
+                        }
+                    )
+                } else {
+                    @Suppress("DEPRECATION")
+                    nsdManager.resolveService(serviceInfo, object : NsdManager.ResolveListener {
+                        override fun onResolveFailed(info: NsdServiceInfo, errorCode: Int) {
+                            Logger.w(TAG) { "Resolve failed for ${info.serviceName}: $errorCode" }
+                        }
 
-                    override fun onServiceResolved(info: NsdServiceInfo) {
-                        val device = DiscoveredDevice(
-                            deviceId = info.serviceName,
-                            deviceName = info.serviceName,
-                            endpoint = "https://${info.host?.hostAddress}:${info.port}",
-                            transport = DiscoveryTransport.MDNS,
-                            lastSeenAt = System.currentTimeMillis()
-                        )
-                        val current = _discoveredDevices.value.toMutableList()
-                        current.removeAll { it.deviceId == device.deviceId }
-                        current.add(device)
-                        _discoveredDevices.value = current
-                    }
-                })
+                        override fun onServiceResolved(info: NsdServiceInfo) {
+                            @Suppress("DEPRECATION")
+                            val address = info.host?.hostAddress ?: return
+                            val device = DiscoveredDevice(
+                                deviceId = info.serviceName,
+                                deviceName = info.serviceName,
+                                endpoint = "https://$address:${info.port}",
+                                transport = DiscoveryTransport.MDNS,
+                                lastSeenAt = System.currentTimeMillis()
+                            )
+                            val current = _discoveredDevices.value.toMutableList()
+                            current.removeAll { it.deviceId == device.deviceId }
+                            current.add(device)
+                            _discoveredDevices.value = current
+                        }
+                    })
+                }
             }
 
             override fun onServiceLost(serviceInfo: NsdServiceInfo) {
