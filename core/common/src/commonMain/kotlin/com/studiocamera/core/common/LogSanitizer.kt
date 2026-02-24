@@ -25,7 +25,12 @@ class SanitizingLogWriter(
     override fun log(severity: Severity, message: String, tag: String, throwable: Throwable?) {
         if (!isLoggable(tag, severity)) return
         val sanitized = if (isRelease) sanitize(message) else message
-        delegate.log(severity, sanitized, tag, throwable)
+        val sanitizedThrowable = if (isRelease && throwable != null) {
+            SanitizedException(sanitize(throwable.message ?: ""), throwable)
+        } else {
+            throwable
+        }
+        delegate.log(severity, sanitized, tag, sanitizedThrowable)
     }
 
     private fun sanitize(message: String): String {
@@ -38,3 +43,12 @@ class SanitizingLogWriter(
         return result
     }
 }
+
+/**
+ * Wraps a throwable with a sanitized message for release logging.
+ * Preserves the original cause chain for internal debugging.
+ */
+private class SanitizedException(
+    sanitizedMessage: String,
+    cause: Throwable
+) : Exception(sanitizedMessage, cause)

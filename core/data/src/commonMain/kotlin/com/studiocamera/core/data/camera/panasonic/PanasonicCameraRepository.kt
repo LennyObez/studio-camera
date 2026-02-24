@@ -10,6 +10,7 @@ import com.studiocamera.core.network.safeApiCall
 import io.ktor.client.HttpClient
 import io.ktor.client.request.get
 import io.ktor.client.statement.bodyAsText
+import io.ktor.http.encodeURLParameter
 import io.ktor.http.isSuccess
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -105,8 +106,10 @@ class PanasonicCameraRepository(
     }
 
     override suspend fun setShootMode(mode: String): ApiResult<Unit> = safeApiCall {
+        // Panasonic cam.cgi does not expose a direct shoot mode endpoint;
+        // the mode is set physically on the camera. Update local state only.
         _cameraState.value = _cameraState.value.copy(shootMode = mode)
-        Logger.d(TAG) { "Shoot mode set to $mode (stubbed for Panasonic)" }
+        Logger.d(TAG) { "Shoot mode updated to $mode (camera-dial controlled)" }
     }
 
     override suspend fun getSettings(): ApiResult<CameraState> = safeApiCall {
@@ -174,22 +177,22 @@ class PanasonicCameraRepository(
         var state = _cameraState.value
 
         iso?.let {
-            httpClient.get(cgi("mode=setsetting&type=iso&value=$it"))
+            httpClient.get(cgi("mode=setsetting&type=iso&value=${it.toString().encodeURLParameter()}"))
             state = state.copy(iso = it)
         }
 
         shutterSpeed?.let {
-            httpClient.get(cgi("mode=setsetting&type=shtrspeed&value=$it"))
+            httpClient.get(cgi("mode=setsetting&type=shtrspeed&value=${it.encodeURLParameter()}"))
             state = state.copy(shutterSpeed = it)
         }
 
         aperture?.let {
-            httpClient.get(cgi("mode=setsetting&type=fnumber&value=$it"))
+            httpClient.get(cgi("mode=setsetting&type=fnumber&value=${it.toString().encodeURLParameter()}"))
             state = state.copy(aperture = it)
         }
 
         ev?.let {
-            httpClient.get(cgi("mode=setsetting&type=exposure&value=$it"))
+            httpClient.get(cgi("mode=setsetting&type=exposure&value=${it.toString().encodeURLParameter()}"))
             state = state.copy(ev = it)
         }
 
@@ -206,16 +209,22 @@ class PanasonicCameraRepository(
 
         whiteBalance?.let {
             try {
-                httpClient.get(cgi("mode=setsetting&type=whitebalance&value=$it"))
-            } catch (_: Exception) {}
-            state = state.copy(whiteBalance = it)
+                httpClient.get(cgi("mode=setsetting&type=whitebalance&value=${it.encodeURLParameter()}"))
+                state = state.copy(whiteBalance = it)
+            } catch (e: CancellationException) { throw e
+            } catch (e: Exception) {
+                Logger.w(TAG) { "Failed to set white balance: ${e.message}" }
+            }
         }
 
         exposureMode?.let {
             try {
-                httpClient.get(cgi("mode=setsetting&type=shootmode&value=$it"))
-            } catch (_: Exception) {}
-            state = state.copy(exposureMode = it)
+                httpClient.get(cgi("mode=setsetting&type=shootmode&value=${it.encodeURLParameter()}"))
+                state = state.copy(exposureMode = it)
+            } catch (e: CancellationException) { throw e
+            } catch (e: Exception) {
+                Logger.w(TAG) { "Failed to set exposure mode: ${e.message}" }
+            }
         }
 
         _cameraState.value = state

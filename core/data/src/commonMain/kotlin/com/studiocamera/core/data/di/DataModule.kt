@@ -87,7 +87,8 @@ val dataModule = module {
                 CameraBrand.Sony to get(named("sonyCamera")),
                 CameraBrand.Canon to get(named("canonCamera")),
                 CameraBrand.Panasonic to get(named("panasonicCamera"))
-            )
+            ),
+            externalScope = get(named("appScope"))
         )
     }
 

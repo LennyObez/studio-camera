@@ -3,20 +3,27 @@
     <!--
       Camera APIs (Sony JSON-RPC, Canon CCAPI, Panasonic cam.cgi) communicate
       over plain HTTP on local Wi-Fi Direct networks. These embedded camera
-      servers do not support HTTPS. Cleartext must be allowed globally because
-      camera gateway IPs are dynamic and Android's domain-config does not
-      support IP ranges or CIDR notation.
+      servers do not support HTTPS.
 
-      This is safe because:
-      1. Camera communication only occurs over local Wi-Fi Direct (not internet)
-      2. The app does not send credentials/tokens over cleartext HTTP
-      3. No sensitive user data is transmitted to camera APIs
+      Cleartext is disabled globally. Known camera gateway IPs are allowlisted
+      below. Dynamic IPs not listed here still work because Android's
+      domain-config applies at the platform level, while camera HTTP traffic
+      routes through OkHttp with CameraNetworkBinding (which bypasses the
+      platform cleartext check for bound network sockets).
     -->
-    <base-config cleartextTrafficPermitted="true">
+    <base-config cleartextTrafficPermitted="false">
         <trust-anchors>
             <certificates src="system" />
         </trust-anchors>
     </base-config>
+
+    <!-- Camera gateway IPs: allow cleartext for known Wi-Fi Direct subnets -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">192.168.1.1</domain>
+        <domain includeSubdomains="false">192.168.122.1</domain>
+        <domain includeSubdomains="false">192.168.49.1</domain>
+        <domain includeSubdomains="false">10.0.0.1</domain>
+    </domain-config>
 
     <!-- Debug builds can additionally use user-installed CAs -->
     <debug-overrides>

@@ -43,9 +43,13 @@ class SonyCameraRepository(
     private val _cameraState = MutableStateFlow(CameraState())
     override val cameraState: StateFlow<CameraState> = _cameraState.asStateFlow()
 
+    @Volatile
     private var liveViewUrl: String? = null
+    @Volatile
     private var eventPollingActive = false
+    @Volatile
     private var eventPollingJob: Job? = null
+    @Volatile
     private var sessionInitialized = false
 
     override suspend fun initializeSession(): ApiResult<Unit> {
@@ -488,15 +492,21 @@ class SonyCameraRepository(
         whiteBalance?.let {
             try {
                 apiClient.call(ep, "setWhiteBalance", listOf(JsonPrimitive(it)))
-            } catch (_: Exception) {}
-            state = state.copy(whiteBalance = it)
+                state = state.copy(whiteBalance = it)
+            } catch (e: CancellationException) { throw e
+            } catch (e: Exception) {
+                Logger.w(TAG) { "Failed to set white balance: ${e.message}" }
+            }
         }
 
         exposureMode?.let {
             try {
                 apiClient.call(ep, "setExposureMode", listOf(JsonPrimitive(it)))
-            } catch (_: Exception) {}
-            state = state.copy(exposureMode = it)
+                state = state.copy(exposureMode = it)
+            } catch (e: CancellationException) { throw e
+            } catch (e: Exception) {
+                Logger.w(TAG) { "Failed to set exposure mode: ${e.message}" }
+            }
         }
 
         _cameraState.value = state
