@@ -105,14 +105,26 @@ class PairViewModelTest {
         val connectionStateManager = ConnectionStateManager()
         val deviceStorage = FakeDeviceStorage()
         val sessionManager = FakeSessionManager()
+        val wifiDirectPairingManager = WifiDirectPairingManager(
+            wifiDirectConnector = wifiConnector,
+            deviceStorage = deviceStorage,
+            sessionManager = sessionManager
+        )
+        val deviceListManager = DeviceListManager(
+            deviceStorage = deviceStorage,
+            connectionStateManager = connectionStateManager,
+            wifiDirectConnector = wifiConnector,
+            sessionManager = sessionManager
+        )
 
         val vm = PairViewModel(
             parseQrPayload = parseQr,
             pairStateMachine = pairStateMachine,
             connectionStateManager = connectionStateManager,
-            deviceStorage = deviceStorage,
             wifiDirectConnector = wifiConnector,
             sessionManager = sessionManager,
+            wifiDirectPairingManager = wifiDirectPairingManager,
+            deviceListManager = deviceListManager,
             externalScope = testScope
         )
         testScope.advanceUntilIdle()

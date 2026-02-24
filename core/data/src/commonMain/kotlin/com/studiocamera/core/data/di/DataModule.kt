@@ -24,6 +24,7 @@ import com.studiocamera.core.data.camera.fujifilm.FujifilmCameraRepository
 import com.studiocamera.core.data.camera.stub.StubCameraRepository
 import com.studiocamera.core.domain.repository.DiscoveryRepository
 import com.studiocamera.core.data.discovery.DiscoveryRepositoryImpl
+import com.studiocamera.core.network.CircuitBreaker
 import org.koin.core.qualifier.named
 import org.koin.dsl.module
 
@@ -35,12 +36,13 @@ val dataModule = module {
     single { BrandApiDiscovery(httpClient = get()) }
     
     // Session manager with brand API discovery support
-    single<SessionManager>(named("real")) { 
+    single<SessionManager>(named("real")) {
         SessionManagerImpl(
             httpClient = get(),
             connectionStateManager = get(),
             deviceStorage = get(),
-            brandApiDiscovery = get()
+            brandApiDiscovery = get(),
+            scope = get(named("appScope"))
         )
     }
 
@@ -59,7 +61,7 @@ val dataModule = module {
         SonyCameraRepository(
             apiClient = get(),
             liveViewDecoder = get(),
-            endpoint = { sessionManager.currentEndpoint() ?: "" }
+            endpoint = { sessionManager.currentEndpoint() ?: error("No active camera endpoint — connect to a device first") }
         )
     }
 
@@ -68,7 +70,7 @@ val dataModule = module {
         CanonCameraRepository(
             httpClient = get(),
             mjpegExtractor = get(),
-            endpoint = { sessionManager.currentEndpoint() ?: "" }
+            endpoint = { sessionManager.currentEndpoint() ?: error("No active camera endpoint — connect to a device first") }
         )
     }
 
@@ -76,7 +78,7 @@ val dataModule = module {
         val sessionManager: SessionManager = get(named("real"))
         PanasonicCameraRepository(
             httpClient = get(),
-            endpoint = { sessionManager.currentEndpoint() ?: "" }
+            endpoint = { sessionManager.currentEndpoint() ?: error("No active camera endpoint — connect to a device first") }
         )
     }
 
@@ -85,25 +87,28 @@ val dataModule = module {
         OmSystemCameraRepository(
             httpClient = get(),
             mjpegExtractor = get(),
-            endpoint = { sessionManager.currentEndpoint() ?: "" }
+            endpoint = { sessionManager.currentEndpoint() ?: error("No active camera endpoint — connect to a device first") }
         )
     }
 
     single<CameraRepository>(named("nikonCamera")) {
         val sessionManager: SessionManager = get(named("real"))
         NikonCameraRepository(
-            endpoint = { sessionManager.currentEndpoint() ?: "" }
+            endpoint = { sessionManager.currentEndpoint() ?: error("No active camera endpoint — connect to a device first") }
         )
     }
 
     single<CameraRepository>(named("fujifilmCamera")) {
         val sessionManager: SessionManager = get(named("real"))
         FujifilmCameraRepository(
-            endpoint = { sessionManager.currentEndpoint() ?: "" }
+            endpoint = { sessionManager.currentEndpoint() ?: error("No active camera endpoint — connect to a device first") }
         )
     }
 
     single<CameraRepository>(named("stubCamera")) { StubCameraRepository() }
+
+    // Circuit breaker for camera API calls — shared across all brands via the router
+    single { CircuitBreaker(failureThreshold = 5, cooldownMs = 30_000L) }
 
     // Camera Router exposing as the real implementation
     single<CameraRepository>(named("real")) {
@@ -117,6 +122,7 @@ val dataModule = module {
                 CameraBrand.Nikon to get(named("nikonCamera")),
                 CameraBrand.Fujifilm to get(named("fujifilmCamera"))
             ),
+            circuitBreaker = get(),
             externalScope = get(named("appScope"))
         )
     }
@@ -128,7 +134,7 @@ val dataModule = module {
         val sessionManager: SessionManager = get(named("real"))
         MediaRepositoryImpl(
             httpClient = get(),
-            endpoint = { sessionManager.currentEndpoint() ?: "" },
+            endpoint = { sessionManager.currentEndpoint() ?: error("No active camera endpoint — connect to a device first") },
             accessToken = { sessionManager.currentAccessToken() },
             platformDownloader = getOrNull()
         )
@@ -140,7 +146,7 @@ val dataModule = module {
         SonyMediaRepository(
             apiClient = get(),
             httpClient = get(),
-            endpoint = { sessionManager.currentEndpoint() ?: "" },
+            endpoint = { sessionManager.currentEndpoint() ?: error("No active camera endpoint — connect to a device first") },
             platformDownloader = getOrNull()
         )
     }

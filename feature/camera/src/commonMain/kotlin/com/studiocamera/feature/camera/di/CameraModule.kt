@@ -7,7 +7,7 @@ val cameraModule = module {
     // CameraRepository is provided by DataModule (named "real") and MockModule (named "mock")
     // Bridged in AppModule
 
-    single {
+    factory {
         CameraViewModel(
             cameraRepository = get(),
             sessionManager = get(),

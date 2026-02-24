@@ -5,8 +5,10 @@ import com.studiocamera.core.data.camera.stub.StubCameraRepository
 import com.studiocamera.core.domain.model.ApiResult
 import com.studiocamera.core.domain.model.CameraBrand
 import com.studiocamera.core.domain.model.CameraState
+import com.studiocamera.core.domain.model.SessionError
 import com.studiocamera.core.domain.repository.CameraRepository
 import com.studiocamera.core.domain.session.ConnectionStateManager
+import com.studiocamera.core.network.CircuitBreaker
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -18,6 +20,7 @@ import kotlinx.coroutines.flow.stateIn
 class BrandCameraRepositoryRouter(
     private val connectionStateManager: ConnectionStateManager,
     private val brandRepositories: Map<CameraBrand, CameraRepository>,
+    private val circuitBreaker: CircuitBreaker,
     externalScope: CoroutineScope
 ) : CameraRepository {
 
@@ -51,17 +54,37 @@ class BrandCameraRepositoryRouter(
         }
     }
 
-    override suspend fun initializeSession(): ApiResult<Unit> = currentRepo().initializeSession()
+    /**
+     * Wraps a delegated [ApiResult] call with the circuit breaker.
+     * Fails fast with [SessionError.CircuitOpen] when the breaker is open.
+     * Only retryable errors count towards tripping the breaker.
+     */
+    private suspend fun <T> withBreaker(block: suspend () -> ApiResult<T>): ApiResult<T> {
+        if (!circuitBreaker.allowRequest()) {
+            Logger.d("CameraRouter") { "Circuit open — failing fast" }
+            return ApiResult.Error(SessionError.CircuitOpen)
+        }
+        val result = block()
+        when (result) {
+            is ApiResult.Success -> circuitBreaker.recordSuccess()
+            is ApiResult.Error -> {
+                if (result.error.isRetryable) circuitBreaker.recordFailure()
+            }
+        }
+        return result
+    }
 
-    override suspend fun capturePhoto(): ApiResult<String> = currentRepo().capturePhoto()
+    override suspend fun initializeSession(): ApiResult<Unit> = withBreaker { currentRepo().initializeSession() }
 
-    override suspend fun startRecording(): ApiResult<Unit> = currentRepo().startRecording()
+    override suspend fun capturePhoto(): ApiResult<String> = withBreaker { currentRepo().capturePhoto() }
 
-    override suspend fun stopRecording(): ApiResult<String> = currentRepo().stopRecording()
+    override suspend fun startRecording(): ApiResult<Unit> = withBreaker { currentRepo().startRecording() }
 
-    override suspend fun setShootMode(mode: String): ApiResult<Unit> = currentRepo().setShootMode(mode)
+    override suspend fun stopRecording(): ApiResult<String> = withBreaker { currentRepo().stopRecording() }
 
-    override suspend fun getSettings(): ApiResult<CameraState> = currentRepo().getSettings()
+    override suspend fun setShootMode(mode: String): ApiResult<Unit> = withBreaker { currentRepo().setShootMode(mode) }
+
+    override suspend fun getSettings(): ApiResult<CameraState> = withBreaker { currentRepo().getSettings() }
 
     override suspend fun updateSettings(
         iso: Int?,
@@ -77,11 +100,13 @@ class BrandCameraRepositoryRouter(
         hdrEnabled: Boolean?,
         whiteBalance: String?,
         exposureMode: String?
-    ): ApiResult<CameraState> = currentRepo().updateSettings(
-        iso, shutterSpeed, aperture, ev, isAutoFocus,
-        flashMode, imageFormat, photoResolution, videoResolution, videoFps, hdrEnabled,
-        whiteBalance, exposureMode
-    )
+    ): ApiResult<CameraState> = withBreaker {
+        currentRepo().updateSettings(
+            iso, shutterSpeed, aperture, ev, isAutoFocus,
+            flashMode, imageFormat, photoResolution, videoResolution, videoFps, hdrEnabled,
+            whiteBalance, exposureMode
+        )
+    }
 
-    override suspend fun tapToFocus(x: Float, y: Float): ApiResult<Unit> = currentRepo().tapToFocus(x, y)
+    override suspend fun tapToFocus(x: Float, y: Float): ApiResult<Unit> = withBreaker { currentRepo().tapToFocus(x, y) }
 }

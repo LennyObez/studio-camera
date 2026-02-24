@@ -41,6 +41,28 @@ suspend fun <T> safeApiCall(
     }
 }
 
+/**
+ * Wraps [safeApiCall] with a [CircuitBreaker]. If the breaker is open the call
+ * fails fast with [SessionError.CircuitOpen]. Otherwise the call proceeds
+ * normally and the breaker is updated based on the outcome.
+ */
+suspend fun <T> safeApiCallWithBreaker(
+    breaker: CircuitBreaker,
+    timeout: Duration = 30.seconds,
+    block: suspend () -> T
+): ApiResult<T> {
+    if (!breaker.allowRequest()) {
+        Logger.d("Network") { "Circuit open — failing fast" }
+        return ApiResult.Error(SessionError.CircuitOpen)
+    }
+    val result = safeApiCall(timeout, block)
+    when (result) {
+        is ApiResult.Success -> breaker.recordSuccess()
+        is ApiResult.Error -> breaker.recordFailure()
+    }
+    return result
+}
+
 suspend fun <T> withTimeoutAndRetry(
     timeout: Duration = 30.seconds,
     maxRetries: Int = 2,

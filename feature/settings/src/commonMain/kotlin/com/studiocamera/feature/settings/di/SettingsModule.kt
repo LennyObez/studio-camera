@@ -5,7 +5,7 @@ import org.koin.core.qualifier.named
 import org.koin.dsl.module
 
 val settingsModule = module {
-    single {
+    factory {
         SettingsViewModel(
             settingsRepository = get(),
             deviceStorage = get(),

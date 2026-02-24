@@ -43,6 +43,10 @@ sealed class SessionError(
         message = "Connection lost (battery optimization). Reconnecting...",
         isRetryable = true
     )
+    data object CircuitOpen : SessionError(
+        message = "Service temporarily unavailable. Retrying shortly.",
+        isRetryable = true
+    )
     data class Unknown(val cause: Throwable? = null) : SessionError(
         message = "An unexpected error occurred.",
         isRetryable = true

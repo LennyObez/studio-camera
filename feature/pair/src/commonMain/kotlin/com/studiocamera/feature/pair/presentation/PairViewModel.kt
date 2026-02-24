@@ -2,18 +2,11 @@ package com.studiocamera.feature.pair.presentation
 
 import com.studiocamera.core.common.currentEpochSeconds
 import com.studiocamera.core.common.platform.WifiDirectConnector
-import com.studiocamera.core.common.platform.WifiDirectResult
 import com.studiocamera.core.domain.session.ConnectionStateManager
-import com.studiocamera.core.domain.model.CameraBrand
 import com.studiocamera.core.domain.model.ConnectionState
-import com.studiocamera.core.domain.model.ConnectionType
-import com.studiocamera.core.domain.model.DeviceCapabilities
 import com.studiocamera.core.domain.model.PairedDevice
 import com.studiocamera.core.domain.model.ParseResult
 import com.studiocamera.core.domain.model.QrPayload
-import com.studiocamera.core.domain.model.detectCameraBrand
-import com.studiocamera.core.domain.model.formatCameraDisplayName
-import com.studiocamera.core.domain.repository.DeviceStorageRepository
 import com.studiocamera.core.domain.session.SessionManager
 import com.studiocamera.core.domain.usecase.ParseQrPayloadUseCase
 import com.studiocamera.feature.pair.domain.PairProgress
@@ -123,9 +116,10 @@ class PairViewModel(
     private val parseQrPayload: ParseQrPayloadUseCase,
     private val pairStateMachine: PairStateMachine,
     private val connectionStateManager: ConnectionStateManager,
-    private val deviceStorage: DeviceStorageRepository,
     private val wifiDirectConnector: WifiDirectConnector,
     private val sessionManager: SessionManager,
+    private val wifiDirectPairingManager: WifiDirectPairingManager,
+    private val deviceListManager: DeviceListManager,
     externalScope: CoroutineScope? = null
 ) {
     private val exceptionHandler = CoroutineExceptionHandler { _, throwable ->
@@ -170,7 +164,7 @@ class PairViewModel(
         // Update ConnectionStateManager immediately so the UI reflects the
         // disconnection without waiting for the SessionManager mutex.
         wifiDirectConnector.onNetworkLost = {
-            Logger.i("PairViewModel") { "Camera Wi-Fi network lost — disconnecting" }
+            Logger.i("PairViewModel") { "Camera Wi-Fi network lost -- disconnecting" }
             connectionStateManager.disconnect()
             _state.update { it.copy(
                 isWifiDirectPairing = false,
@@ -222,7 +216,7 @@ class PairViewModel(
             }
             PairEvent.CancelPairing -> {
                 pairStateMachine.cancel()
-                scope.launch { wifiDirectConnector.disconnect() }
+                scope.launch { wifiDirectPairingManager.disconnect() }
                 _state.update { it.copy(
                     isPairing = false,
                     isWifiDirectPairing = false,
@@ -362,108 +356,69 @@ class PairViewModel(
         ) }
 
         scope.launch {
-            val result = wifiDirectConnector.connect(ssid, password)
+            _state.update { it.copy(wifiDirectStep = WifiDirectStep.DetectingCamera) }
 
-            when (result) {
-                is WifiDirectResult.Connected -> {
-                    _state.update { it.copy(wifiDirectStep = WifiDirectStep.DetectingCamera) }
-
-                    val brand = detectCameraBrand(ssid)
-                    val deviceName = if (modelName != null) {
-                        formatCameraDisplayName(brand, modelName)
-                    } else {
-                        brandDisplayName(brand, ssid)
-                    }
-
-                    _state.update { it.copy(wifiDirectStep = WifiDirectStep.Saving) }
-
-                    val deviceId = "wd-${ssid.replace(Regex("[^A-Za-z0-9_-]"), "_")}"
-                    val device = PairedDevice(
-                        deviceId = deviceId,
-                        deviceName = deviceName,
-                        endpoint = "http://${result.gatewayIp}",
-                        fingerprint = "",
-                        connectionType = ConnectionType.WifiDirect,
-                        cameraBrand = brand,
-                        wifiSsid = ssid,
-                        lastConnectedAt = currentEpochSeconds()
-                    )
-
-                    deviceStorage.savePairedDevice(device)
-                    if (password.isNotBlank()) {
-                        deviceStorage.saveWifiPassword(deviceId, password)
-                    }
-
-                    // Discover API endpoint and initialize camera session
-                    _state.update { it.copy(wifiDirectStep = WifiDirectStep.Initializing) }
-                    sessionManager.connect(device)
-                    loadPairedDevices()
-
-                    if (sessionManager.isConnected()) {
-                        _state.update { it.copy(
-                            isWifiDirectPairing = false,
-                            wifiDirectStep = WifiDirectStep.Done,
-                            showModePicker = true
-                        ) }
-                    } else {
-                        _state.update { it.copy(
-                            isWifiDirectPairing = false,
-                            wifiDirectStep = WifiDirectStep.Failed,
-                            lastError = "Connected to camera Wi-Fi but could not reach camera API. " +
-                                "Make sure your camera is in remote control mode."
-                        ) }
-                    }
-                }
-
-                is WifiDirectResult.UserCancelled -> {
-                    _state.update { it.copy(
-                        isWifiDirectPairing = false,
-                        wifiDirectStep = WifiDirectStep.Idle,
-                        lastError = "Connection cancelled. You can try again or connect manually via Wi-Fi settings."
-                    ) }
-                }
-
-                is WifiDirectResult.Failed -> {
-                    _state.update { it.copy(
-                        isWifiDirectPairing = false,
-                        wifiDirectStep = WifiDirectStep.Failed,
-                        lastError = "Wi-Fi connection failed: ${result.reason}"
-                    ) }
-                }
-
-                is WifiDirectResult.OpenWifiSettings -> {
-                    _state.update { it.copy(
-                        isWifiDirectPairing = false,
-                        wifiDirectStep = WifiDirectStep.Idle,
-                        lastError = "Your device doesn't support automatic Wi-Fi connection. " +
-                            "Please connect to \"$ssid\" manually in Wi-Fi settings, then return here."
-                    ) }
-                    _sideEffects.emit(PairSideEffect.OpenWifiSettings)
-                }
-
-                is WifiDirectResult.NeedsNearbyWifiPermission -> {
-                    // Store pending connection for retry after permission is granted
-                    pendingWifiSsid = ssid
-                    pendingWifiPassword = password
-                    pendingWifiModelName = modelName
-                    _state.update { it.copy(
-                        isWifiDirectPairing = false,
-                        wifiDirectStep = WifiDirectStep.Idle
-                    ) }
-                    _sideEffects.emit(PairSideEffect.RequestNearbyWifiPermission)
-                }
-            }
+            val result = wifiDirectPairingManager.connect(ssid, password, modelName)
+            handleWifiDirectResult(result)
+            loadPairedDevices()
         }
     }
 
-    private fun brandDisplayName(brand: CameraBrand, ssid: String): String = when (brand) {
-        CameraBrand.Sony -> "Sony Camera"
-        CameraBrand.Canon -> "Canon Camera"
-        CameraBrand.Nikon -> "Nikon Camera"
-        CameraBrand.Fujifilm -> "Fujifilm Camera"
-        CameraBrand.Panasonic -> "Panasonic/Lumix Camera"
-        CameraBrand.OmSystem -> "OM System Camera"
-        CameraBrand.Unknown -> "Camera ($ssid)"
+    private suspend fun handleWifiDirectResult(result: WifiDirectPairingResult) {
+        when (result) {
+            is WifiDirectPairingResult.Connected -> {
+                _state.update { it.copy(
+                    isWifiDirectPairing = false,
+                    wifiDirectStep = WifiDirectStep.Done,
+                    showModePicker = true
+                ) }
+            }
+
+            is WifiDirectPairingResult.ApiUnreachable -> {
+                _state.update { it.copy(
+                    isWifiDirectPairing = false,
+                    wifiDirectStep = WifiDirectStep.Failed,
+                    lastError = result.message
+                ) }
+            }
+
+            is WifiDirectPairingResult.Cancelled -> {
+                _state.update { it.copy(
+                    isWifiDirectPairing = false,
+                    wifiDirectStep = WifiDirectStep.Idle,
+                    lastError = result.message.ifBlank { null }
+                ) }
+            }
+
+            is WifiDirectPairingResult.Failed -> {
+                _state.update { it.copy(
+                    isWifiDirectPairing = false,
+                    wifiDirectStep = WifiDirectStep.Failed,
+                    lastError = result.message
+                ) }
+            }
+
+            is WifiDirectPairingResult.OpenSettings -> {
+                _state.update { it.copy(
+                    isWifiDirectPairing = false,
+                    wifiDirectStep = WifiDirectStep.Idle,
+                    lastError = "Your device doesn't support automatic Wi-Fi connection. " +
+                        "Please connect to \"${result.ssid}\" manually in Wi-Fi settings, then return here."
+                ) }
+                _sideEffects.emit(PairSideEffect.OpenWifiSettings)
+            }
+
+            is WifiDirectPairingResult.NeedsPermission -> {
+                pendingWifiSsid = result.ssid
+                pendingWifiPassword = result.password
+                pendingWifiModelName = result.modelName
+                _state.update { it.copy(
+                    isWifiDirectPairing = false,
+                    wifiDirectStep = WifiDirectStep.Idle
+                ) }
+                _sideEffects.emit(PairSideEffect.RequestNearbyWifiPermission)
+            }
+        }
     }
 
     private fun connectManualWifiDirect() {
@@ -561,7 +516,6 @@ class PairViewModel(
                 }
                 connectionStateManager.setConnectedDevice(device)
                 connectionStateManager.updateState(ConnectionState.Connected)
-                deviceStorage.savePairedDevice(device)
                 _state.update { it.copy(
                     isPairing = false,
                     showModePicker = true
@@ -588,7 +542,7 @@ class PairViewModel(
 
     private fun disconnect() {
         scope.launch {
-            wifiDirectConnector.disconnect()
+            wifiDirectPairingManager.disconnect()
             sessionManager.disconnect()
         }
     }
@@ -599,10 +553,8 @@ class PairViewModel(
 
     private fun renameDevice(deviceId: String, newName: String) {
         scope.launch {
-            val device = deviceStorage.getPairedDevice(deviceId) ?: return@launch
-            val updated = device.copy(customName = newName.trim().ifBlank { null })
-            deviceStorage.savePairedDevice(updated)
-            loadPairedDevices()
+            val devices = deviceListManager.renameDevice(deviceId, newName) ?: return@launch
+            _state.update { it.copy(pairedDevices = devices) }
         }
     }
 
@@ -610,14 +562,8 @@ class PairViewModel(
         val deviceId = _state.value.showRemoveDeviceDialog ?: return
         _state.update { it.copy(showRemoveDeviceDialog = null) }
         scope.launch {
-            // If removing the currently connected device, disconnect first
-            val connectedDevice = connectionStateManager.connectedDevice.value
-            if (connectedDevice?.deviceId == deviceId) {
-                wifiDirectConnector.disconnect()
-                sessionManager.disconnect()
-            }
-            deviceStorage.removePairedDevice(deviceId)
-            loadPairedDevices()
+            val devices = deviceListManager.removeDevice(deviceId)
+            _state.update { it.copy(pairedDevices = devices) }
         }
     }
 
@@ -627,11 +573,16 @@ class PairViewModel(
             return
         }
         scope.launch {
-            val device = deviceStorage.getPairedDevice(deviceId) ?: return@launch
-            val ssid = device.wifiSsid
-            if (ssid != null) {
-                val password = deviceStorage.getWifiPassword(deviceId) ?: ""
-                startWifiDirectPairing(ssid, password, device.deviceName)
+            val (device, password) = deviceListManager.getDeviceWithPassword(deviceId) ?: return@launch
+            if (device.wifiSsid != null) {
+                _state.update { it.copy(
+                    isWifiDirectPairing = true,
+                    wifiDirectStep = WifiDirectStep.Connecting,
+                    lastError = null
+                ) }
+                val result = wifiDirectPairingManager.reconnect(device, password)
+                handleWifiDirectResult(result)
+                loadPairedDevices()
             } else {
                 _sideEffects.emit(PairSideEffect.ShowSnackbar("Cannot reconnect — no saved Wi-Fi network"))
             }
@@ -648,72 +599,25 @@ class PairViewModel(
             if (connectedDevice?.deviceId == deviceId && sessionManager.isConnected()) {
                 _sideEffects.emit(destination)
             } else {
-                val device = deviceStorage.getPairedDevice(deviceId) ?: return@launch
-                val ssid = device.wifiSsid
-                if (ssid != null) {
-                    val password = deviceStorage.getWifiPassword(deviceId) ?: ""
-                    // Reconnect first, then navigate on success
+                val (device, password) = deviceListManager.getDeviceWithPassword(deviceId) ?: return@launch
+                if (device.wifiSsid != null) {
                     _state.update { it.copy(
                         isWifiDirectPairing = true,
                         wifiDirectStep = WifiDirectStep.Connecting,
                         lastError = null
                     ) }
-                    val result = wifiDirectConnector.connect(ssid, password)
+                    val result = wifiDirectPairingManager.reconnect(device, password)
                     when (result) {
-                        is WifiDirectResult.Connected -> {
-                            _state.update { it.copy(wifiDirectStep = WifiDirectStep.DetectingCamera) }
-                            val updatedDevice = device.copy(
-                                endpoint = "http://${result.gatewayIp}",
-                                lastConnectedAt = currentEpochSeconds()
-                            )
-                            deviceStorage.savePairedDevice(updatedDevice)
-                            sessionManager.connect(updatedDevice)
-                            loadPairedDevices()
-                            if (sessionManager.isConnected()) {
-                                _state.update { it.copy(
-                                    isWifiDirectPairing = false,
-                                    wifiDirectStep = WifiDirectStep.Done
-                                ) }
-                                _sideEffects.emit(destination)
-                            } else {
-                                _state.update { it.copy(
-                                    isWifiDirectPairing = false,
-                                    wifiDirectStep = WifiDirectStep.Failed,
-                                    lastError = "Connected to Wi-Fi but camera API unreachable"
-                                ) }
-                            }
-                        }
-                        is WifiDirectResult.NeedsNearbyWifiPermission -> {
-                            pendingWifiSsid = ssid
-                            pendingWifiPassword = password
-                            pendingWifiModelName = device.deviceName
+                        is WifiDirectPairingResult.Connected -> {
                             _state.update { it.copy(
                                 isWifiDirectPairing = false,
-                                wifiDirectStep = WifiDirectStep.Idle
+                                wifiDirectStep = WifiDirectStep.Done
                             ) }
-                            _sideEffects.emit(PairSideEffect.RequestNearbyWifiPermission)
+                            _sideEffects.emit(destination)
                         }
-                        is WifiDirectResult.UserCancelled -> {
-                            _state.update { it.copy(
-                                isWifiDirectPairing = false,
-                                wifiDirectStep = WifiDirectStep.Idle
-                            ) }
-                        }
-                        is WifiDirectResult.Failed -> {
-                            _state.update { it.copy(
-                                isWifiDirectPairing = false,
-                                wifiDirectStep = WifiDirectStep.Failed,
-                                lastError = "Could not reconnect: ${result.reason}"
-                            ) }
-                        }
-                        is WifiDirectResult.OpenWifiSettings -> {
-                            _state.update { it.copy(
-                                isWifiDirectPairing = false,
-                                wifiDirectStep = WifiDirectStep.Idle
-                            ) }
-                            _sideEffects.emit(PairSideEffect.OpenWifiSettings)
-                        }
+                        else -> handleWifiDirectResult(result)
                     }
+                    loadPairedDevices()
                 } else {
                     _sideEffects.emit(PairSideEffect.ShowSnackbar("Cannot reconnect — no saved Wi-Fi network"))
                 }
@@ -723,7 +627,7 @@ class PairViewModel(
 
     private fun loadPairedDevices() {
         scope.launch {
-            val devices = deviceStorage.getPairedDevices()
+            val devices = deviceListManager.loadPairedDevices()
             _state.update { it.copy(pairedDevices = devices) }
         }
     }

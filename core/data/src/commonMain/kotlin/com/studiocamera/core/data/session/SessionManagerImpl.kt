@@ -45,10 +45,9 @@ class SessionManagerImpl(
     private val httpClient: HttpClient,
     private val connectionStateManager: ConnectionStateManager,
     private val deviceStorage: DeviceStorageRepository,
-    private val brandApiDiscovery: BrandApiDiscovery? = null
+    private val brandApiDiscovery: BrandApiDiscovery? = null,
+    private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 ) : SessionManager {
-
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val json = Json { ignoreUnknownKeys = true }
 
     private val _state = MutableStateFlow(ConnectionState.Disconnected)
@@ -88,7 +87,9 @@ class SessionManagerImpl(
 
             // Verify fingerprint (TOFU)
             val trustedFp = deviceStorage.getTrustedFingerprint(device.deviceId)
-            if (trustedFp != null && trustedFp != device.fingerprint && device.fingerprint.isNotEmpty()) {
+            if (trustedFp != null && trustedFp != device.fingerprint) {
+                // Reject if fingerprint doesn't match, including empty fingerprints
+                // (an empty fingerprint when we expect one could indicate MITM)
                 updateState(ConnectionState.Failed)
                 _events.emit(SessionEvent.Error(SessionError.FingerprintMismatch))
                 return

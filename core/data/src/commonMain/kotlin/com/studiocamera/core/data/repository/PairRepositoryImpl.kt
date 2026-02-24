@@ -29,6 +29,12 @@ class PairRepositoryImpl(
         require(endpoint.startsWith("http://") || endpoint.startsWith("https://")) {
             "Endpoint must start with http:// or https://"
         }
+        // Validate URL structure: must have a valid host (not just protocol prefix)
+        val hostRegex = Regex("""^https?://([a-zA-Z0-9]([a-zA-Z0-9\-]*[a-zA-Z0-9])?\.)*[a-zA-Z0-9]([a-zA-Z0-9\-]*[a-zA-Z0-9])?(:\d{1,5})?(/.*)?$""")
+        val ipRegex = Regex("""^https?://\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}(:\d{1,5})?(/.*)?$""")
+        require(hostRegex.matches(endpoint) || ipRegex.matches(endpoint)) {
+            "Endpoint has an invalid URL format"
+        }
         // Perform health check
         httpClient.get("$endpoint${ApiEndpoints.HEALTH}")
         Logger.d("Pair") { "Endpoint resolved successfully" }

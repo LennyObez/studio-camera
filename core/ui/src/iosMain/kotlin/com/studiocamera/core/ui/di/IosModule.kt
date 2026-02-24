@@ -12,6 +12,9 @@ import com.studiocamera.core.domain.repository.DeviceStorageRepository
 import com.studiocamera.core.domain.session.ConnectionStateManager
 import com.studiocamera.core.network.TokenRefreshConfig
 import com.studiocamera.core.storage.SecureStorage
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import org.koin.core.qualifier.named
 import org.koin.dsl.module
 
@@ -22,6 +25,7 @@ import org.koin.dsl.module
  * Bridge module is shared via `com.studiocamera.core.data.di.bridgeModule`.
  */
 val iosCoreModule = module {
+    single<CoroutineScope>(named("appScope")) { CoroutineScope(SupervisorJob() + Dispatchers.Default) }
     single { ConnectionStateManager() }
     single { SecureStorage() }
     single { MockModeManager() }

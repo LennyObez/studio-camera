@@ -6,6 +6,7 @@ import com.studiocamera.core.domain.model.CameraState
 import com.studiocamera.core.domain.model.PairedDevice
 import com.studiocamera.core.domain.repository.CameraRepository
 import com.studiocamera.core.domain.session.ConnectionStateManager
+import com.studiocamera.core.network.CircuitBreaker
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -88,6 +89,7 @@ class BrandCameraRepositoryRouterTest {
                 CameraBrand.Sony to sonyRepo,
                 CameraBrand.Canon to canonRepo
             ),
+            circuitBreaker = CircuitBreaker(),
             externalScope = scope
         )
 

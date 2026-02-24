@@ -1,8 +1,6 @@
 package com.studiocamera.feature.pair.presentation
 
 import com.studiocamera.core.common.platform.WifiDirectConnector
-import com.studiocamera.core.domain.model.DeviceCapabilities
-import com.studiocamera.core.domain.model.PairedDevice
 import com.studiocamera.core.domain.session.ConnectionStateManager
 import com.studiocamera.core.domain.usecase.ParseQrPayloadUseCase
 import com.studiocamera.feature.pair.domain.PairStateMachine
@@ -33,14 +31,26 @@ class PairViewModelNfcTest {
         val deviceStorage = FakeDeviceStorage()
         val wifiDirectConnector = WifiDirectConnector()
         val sessionManager = FakeSessionManager()
+        val wifiDirectPairingManager = WifiDirectPairingManager(
+            wifiDirectConnector = wifiDirectConnector,
+            deviceStorage = deviceStorage,
+            sessionManager = sessionManager
+        )
+        val deviceListManager = DeviceListManager(
+            deviceStorage = deviceStorage,
+            connectionStateManager = connectionStateManager,
+            wifiDirectConnector = wifiDirectConnector,
+            sessionManager = sessionManager
+        )
 
         val vm = PairViewModel(
             parseQrPayload = parseQr,
             pairStateMachine = pairStateMachine,
             connectionStateManager = connectionStateManager,
-            deviceStorage = deviceStorage,
             wifiDirectConnector = wifiDirectConnector,
             sessionManager = sessionManager,
+            wifiDirectPairingManager = wifiDirectPairingManager,
+            deviceListManager = deviceListManager,
             externalScope = testScope
         )
         testScope.advanceUntilIdle()
