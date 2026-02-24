@@ -17,3 +17,12 @@ allprojects {
         }
     }
 }
+
+// Dependency locking for reproducible builds.
+// Generate lock files: ./gradlew dependencies --write-locks
+// Verify locked deps: ./gradlew dependencies --update-locks (fails if mismatched)
+subprojects {
+    dependencyLocking {
+        lockAllConfigurations()
+    }
+}
