@@ -98,9 +98,11 @@ gradle/              Version catalog and wrapper
 The full quality gate must pass locally:
 
 ```bash
-./gradlew check        # lint + unit tests
-./gradlew lintDebug    # Android lint
+./gradlew check        # Android lint + unit tests
+./gradlew lintDebug    # Android lint only (if you want a quick check)
 ```
+
+There's no separate formatter or detekt config at the moment. `./gradlew check` runs Android lint and unit tests.
 
 Never commit secrets, API keys, or device credentials.
 

@@ -496,6 +496,7 @@ class SonyCameraRepository(
             } catch (e: CancellationException) { throw e
             } catch (e: Exception) {
                 Logger.w(TAG) { "Failed to set white balance: ${e.message}" }
+                throw e
             }
         }
 
@@ -506,6 +507,7 @@ class SonyCameraRepository(
             } catch (e: CancellationException) { throw e
             } catch (e: Exception) {
                 Logger.w(TAG) { "Failed to set exposure mode: ${e.message}" }
+                throw e
             }
         }
 

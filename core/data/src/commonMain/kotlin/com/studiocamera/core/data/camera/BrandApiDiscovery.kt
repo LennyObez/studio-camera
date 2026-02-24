@@ -85,10 +85,9 @@ class BrandApiDiscovery(private val httpClient: HttpClient) {
             Logger.w(TAG) { "All probes failed on attempt $attempt" }
         }
 
-        // All retries exhausted — return unverified fallback
-        val fallback = "http://$gatewayIp:8080/sony/camera"
-        Logger.w(TAG) { "Discovery unverified after ${retryDelays.size} attempts, using fallback: $fallback" }
-        return DiscoveryResult(endpoint = fallback, verified = false, supportsMjpeg = true)
+        // All retries exhausted — discovery failed
+        Logger.w(TAG) { "Sony discovery failed after ${retryDelays.size} attempts" }
+        return null
     }
 
     /**
@@ -145,10 +144,8 @@ class BrandApiDiscovery(private val httpClient: HttpClient) {
             }
         }
 
-        // Fallback
-        val fallback = "http://192.168.0.10"
-        Logger.w(TAG) { "OM System discovery unverified, using fallback: $fallback" }
-        return DiscoveryResult(endpoint = fallback, verified = false, supportsMjpeg = true)
+        Logger.w(TAG) { "OM System discovery failed" }
+        return null
     }
 
     /**
@@ -175,9 +172,8 @@ class BrandApiDiscovery(private val httpClient: HttpClient) {
             }
         }
 
-        val fallback = "http://$gatewayIp:8080"
-        Logger.w(TAG) { "Canon discovery unverified, using fallback: $fallback" }
-        return DiscoveryResult(endpoint = fallback, verified = false, supportsMjpeg = true)
+        Logger.w(TAG) { "Canon discovery failed" }
+        return null
     }
 
     /**
@@ -202,9 +198,8 @@ class BrandApiDiscovery(private val httpClient: HttpClient) {
             }
         }
 
-        val fallback = "http://$gatewayIp"
-        Logger.w(TAG) { "Panasonic discovery unverified, using fallback: $fallback" }
-        return DiscoveryResult(endpoint = fallback, verified = false, supportsMjpeg = false)
+        Logger.w(TAG) { "Panasonic discovery failed" }
+        return null
     }
 
     /**
@@ -219,9 +214,8 @@ class BrandApiDiscovery(private val httpClient: HttpClient) {
             Logger.i(TAG) { "Nikon PTP/IP discovered at $gatewayIp:15740" }
             DiscoveryResult(endpoint = endpoint, verified = true, supportsMjpeg = false)
         } else {
-            val endpoint = "http://$gatewayIp:15740"
-            Logger.w(TAG) { "Nikon PTP/IP probe failed, using fallback: $endpoint" }
-            DiscoveryResult(endpoint = endpoint, verified = false, supportsMjpeg = false)
+            Logger.w(TAG) { "Nikon PTP/IP discovery failed" }
+            null
         }
     }
 
@@ -237,9 +231,8 @@ class BrandApiDiscovery(private val httpClient: HttpClient) {
             Logger.i(TAG) { "Fujifilm PTP/IP discovered at $gatewayIp:55740" }
             DiscoveryResult(endpoint = endpoint, verified = true, supportsMjpeg = false)
         } else {
-            val endpoint = "http://$gatewayIp:55740"
-            Logger.w(TAG) { "Fujifilm PTP/IP probe failed, using fallback: $endpoint" }
-            DiscoveryResult(endpoint = endpoint, verified = false, supportsMjpeg = false)
+            Logger.w(TAG) { "Fujifilm PTP/IP discovery failed" }
+            null
         }
     }
 

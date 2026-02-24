@@ -10,7 +10,7 @@ Studio Camera is currently in pre-release development. Security fixes are provid
 
 ## Reporting a vulnerability
 
-If the repository has GitHub Private Vulnerability Reporting (Security Advisories) enabled, please use that. Otherwise, email us directly.
+Please use GitHub Private Vulnerability Reporting (Security Advisories) on this repository. If that's unavailable, email us directly.
 
 - **Email:** studiocamera+security@lennyobez.com
 - **Subject:** `[SECURITY] <short summary>`
