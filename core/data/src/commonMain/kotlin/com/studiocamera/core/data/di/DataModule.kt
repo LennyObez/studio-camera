@@ -145,13 +145,13 @@ val dataModule = module {
         )
     }
 
-    // Media Router exposing as the real implementation
+    // Media Router — delegates to brand-specific repos where available,
+    // falls back to generic REST-based legacyMedia for other brands.
     single<MediaRepository>(named("real")) {
         BrandMediaRepositoryRouter(
             connectionStateManager = get(),
             brandRepositories = mapOf(
                 CameraBrand.Sony to get(named("sonyMedia"))
-                // Add canon, panasonic later here
             ),
             defaultRepository = get(named("legacyMedia"))
         )

@@ -13,5 +13,8 @@ kotlin {
             implementation(libs.ktor.client.websockets)
             implementation(libs.ktor.serialization.json)
         }
+        commonTest.dependencies {
+            implementation(libs.ktor.client.mock)
+        }
     }
 }

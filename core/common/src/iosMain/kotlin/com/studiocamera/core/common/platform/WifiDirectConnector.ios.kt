@@ -137,7 +137,9 @@ actual class WifiDirectConnector {
 
     /**
      * Get the en0 (Wi-Fi) IPv4 address and derive the gateway as x.x.x.1.
-     * Same heuristic as Android — camera APs use .1 as gateway.
+     * Camera access points typically use .1 as gateway. If the camera uses a
+     * different gateway, discovery will fail and the user will need to
+     * reconnect manually.
      */
     private fun deriveGatewayIp(): String? {
         memScoped {
@@ -158,6 +160,7 @@ actual class WifiDirectConnector {
                         val ipStr = inet_ntoa(sockAddr.sin_addr.readValue())?.toKString()
                         if (ipStr != null) {
                             result = ipStr.substringBeforeLast('.') + ".1"
+                            Logger.d(TAG) { "Derived gateway $result from en0 address $ipStr (assumes .1 gateway)" }
                             break
                         }
                     }
